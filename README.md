@@ -13,13 +13,20 @@
 
 ## 使用方法
 
-### 在线使用
+### 🌐 在线使用（推荐）
 
-1. 打开 `stl_generator_with_preview.html` 文件
-2. 在2D坐标系上点击添加轮廓点，或在文本框中输入坐标
-3. 设置旋转分段数（推荐64-256）
-4. 点击"生成并下载STL"生成文件
-5. 点击"预览模型"查看3D预览
+如果已发布到GitHub Pages，可以直接访问在线版本：
+- 访问：`https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/` 或
+- 访问：`https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/index.html`
+
+### 💻 本地使用
+
+1. 下载或克隆此仓库
+2. 打开 `index.html` 或 `stl_generator_with_preview.html` 文件
+3. 在2D坐标系上点击添加轮廓点，或在文本框中输入坐标
+4. 设置旋转分段数（推荐64-256）
+5. 点击"生成并下载STL"生成文件
+6. 点击"预览模型"查看3D预览
 
 ### 坐标输入格式
 
@@ -54,6 +61,7 @@
 
 ## 文件说明
 
+- `index.html` - **主文件**（完整版，带3D预览和交互式坐标系）- 推荐使用
 - `stl_generator_with_preview.html` - 完整版（带3D预览和交互式坐标系）
 - `stl_generator.html` - 简化版（仅生成STL文件）
 - `generate_ring.py` - Python脚本：生成圆环STL模型

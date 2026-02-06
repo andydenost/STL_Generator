@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旋转体STL模型生成器（带预览）</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" 
+            onerror="console.error('Three.js CDN加载失败，尝试备用CDN'); 
+                     var script = document.createElement('script');
+                     script.src = 'https://unpkg.com/three@0.150.0/build/three.min.js';
+                     script.onerror = function() { 
+                         alert('Three.js库加载失败，请检查网络连接或使用离线版本'); 
+                     };
+                     document.head.appendChild(script);"></script>
+    <script>
+        // 等待Three.js加载完成后定义OrbitControls
+        (function() {
+            function initOrbitControls() {
+                if (typeof THREE === 'undefined') {
+                    setTimeout(initOrbitControls, 100);
+                    return;
+                }
+                
+                // 如果OrbitControls未定义，创建简化版本
+                if (typeof THREE.OrbitControls === 'undefined') {
+                    THREE.OrbitControls = function(camera, domElement) {
+                        this.camera = camera;
+                        this.domElement = domElement;
+                        this.target = new THREE.Vector3(0, 0, 0);
+                        this.enableDamping = true;
+                        this.dampingFactor = 0.05;
+                        this.minDistance = 10;
+                        this.maxDistance = 500;
+                        
+                        let isDragging = false;
+                        let lastMouseX = 0;
+                        let lastMouseY = 0;
+                        let spherical = new THREE.Spherical();
+                        let sphericalDelta = new THREE.Spherical();
+                        
+                        // 初始化球坐标
+                        const updateSpherical = () => {
+                            const offset = new THREE.Vector3().subVectors(this.camera.position, this.target);
+                            spherical.setFromVector3(offset);
+                        };
+                        updateSpherical();
+                        
+                        this.update = function() {
+                            if (this.enableDamping) {
+                                spherical.theta += sphericalDelta.theta * this.dampingFactor;
+                                spherical.phi += sphericalDelta.phi * this.dampingFactor;
+                                sphericalDelta.theta *= (1 - this.dampingFactor);
+                                sphericalDelta.phi *= (1 - this.dampingFactor);
+                            } else {
+                                spherical.theta += sphericalDelta.theta;
+                                spherical.phi += sphericalDelta.phi;
+                                sphericalDelta.theta = 0;
+                                sphericalDelta.phi = 0;
+                            }
+                            
+                            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                            
+                            const offset = new THREE.Vector3();
+                            offset.setFromSpherical(spherical);
+                            offset.add(this.target);
+                            this.camera.position.copy(offset);
+                            this.camera.lookAt(this.target);
+                        };
+                        
+                        this.reset = function() {
+                            updateSpherical();
+                            sphericalDelta.theta = 0;
+                            sphericalDelta.phi = 0;
+                        };
+                        
+                        const onMouseDown = (e) => {
+                            if (e.button === 0) {
+                                isDragging = true;
+                                lastMouseX = e.clientX;
+                                lastMouseY = e.clientY;
+                                updateSpherical();
+                            }
+                        };
+                        
+                        const onMouseMove = (e) => {
+                            if (isDragging) {
+                                const deltaX = e.clientX - lastMouseX;
+                                const deltaY = e.clientY - lastMouseY;
+                                
+                                sphericalDelta.theta -= deltaX * 0.002;
+                                sphericalDelta.phi -= deltaY * 0.002;
+                                
+                                lastMouseX = e.clientX;
+                                lastMouseY = e.clientY;
+                            }
+                        };
+                        
+                        const onMouseUp = () => {
+                            isDragging = false;
+                        };
+                        
+                        const onWheel = (e) => {
+                            e.preventDefault();
+                            const offset = new THREE.Vector3().subVectors(this.camera.position, this.target);
+                            const distance = offset.length();
+                            const scale = e.deltaY > 0 ? 1.1 : 0.9;
+                            const newDistance = Math.max(this.minDistance, Math.min(this.maxDistance, distance * scale));
+                            offset.normalize().multiplyScalar(newDistance);
+                            this.camera.position.copy(offset).add(this.target);
+                            updateSpherical();
+                        };
+                        
+                        this.domElement.addEventListener('mousedown', onMouseDown);
+                        this.domElement.addEventListener('mousemove', onMouseMove);
+                        this.domElement.addEventListener('mouseup', onMouseUp);
+                        this.domElement.addEventListener('mouseleave', onMouseUp);
+                        this.domElement.addEventListener('wheel', onWheel);
+                    };
+                }
+            }
+            
+            // 立即尝试初始化
+            initOrbitControls();
+            
+            // 也监听DOMContentLoaded
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initOrbitControls);
+            }
+        })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/controls/OrbitControls.js" onerror="console.log('OrbitControls CDN加载失败，使用内置版本')"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .input-section {
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .help-text {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .help-text code {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .preview-section {
+            position: sticky;
+            top: 20px;
+        }
+        
+        .preview-container {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #1a1a1a;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #previewCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .preview-controls {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .preview-controls strong {
+            color: #333;
+        }
+        
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-info {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .result-info strong {
+            color: #667eea;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .coordinate-section {
+            margin-bottom: 20px;
+        }
+        
+        .coordinate-container {
+            width: 100%;
+            height: 400px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+            position: relative;
+            cursor: crosshair;
+        }
+        
+        #coordinateCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .coordinate-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .coordinate-controls button {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        
+        .coordinate-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 旋转体STL模型生成器（带3D预览）</h1>
+        <p class="subtitle">输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览</p>
+        
+        <div class="main-content">
+            <div class="input-section">
+                <div class="input-group">
+                    <label>交互式坐标系（点击添加点）</label>
+                    <div class="coordinate-section">
+                        <div class="coordinate-container">
+                            <canvas id="coordinateCanvas"></canvas>
+                        </div>
+                        <div class="coordinate-controls">
+                            <button class="btn-secondary" onclick="clearCoordinatePoints()">清空所有点</button>
+                            <button class="btn-secondary" onclick="deleteLastPoint()">删除最后一点</button>
+                            <button class="btn-secondary" onclick="syncFromText()">从文本框同步</button>
+                        </div>
+                        <div class="coordinate-info">
+                            <strong>操作说明：</strong>点击坐标系添加点 | 右键点击删除最近的点 | 双击清空所有点
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="points">轮廓点坐标（每行一个点，格式：x, y 或 x y）</label>
+                    <textarea id="points" oninput="syncToCoordinate()">0, 0
+-35, 0
+-35, 5
+-25, 5
+-25, 20
+-20, 20
+-20, 10
+0, 10</textarea>
+                    <div class="help-text">
+                        <strong>使用说明：</strong><br>
+                        • 每行输入一个点的坐标，格式为 <code>x, y</code> 或 <code>x y</code><br>
+                        • x坐标：水平方向（旋转轴为y轴）<br>
+                        • y坐标：垂直方向（旋转体的高度）<br>
+                        • 点按顺序连接形成轮廓，最后一个点会自动连接到第一个点<br>
+                        • 建议从旋转轴（x=0）开始，形成闭合轮廓
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="segments">旋转分段数（精度，越大越平滑）：</label>
+                    <input type="number" id="segments" value="128" min="32" max="512">
+                    <div class="help-text">
+                        推荐值：64-256。数值越大，模型越平滑，但文件也越大。
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn-primary" onclick="generateSTL()">生成并下载STL</button>
+                    <button class="btn-success" onclick="previewModel()">预览模型</button>
+                    <button class="btn-secondary" onclick="loadExample()">加载示例</button>
+                    <button class="btn-secondary" onclick="clearAll()">清空</button>
+                </div>
+                
+                <div id="result" class="result-section">
+                    <div id="resultInfo" class="result-info"></div>
+                    <div id="errorMsg" class="error" style="display: none;"></div>
+                    <div id="successMsg" class="success" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="preview-container">
+                    <div id="loading" class="loading">正在生成预览...</div>
+                    <canvas id="previewCanvas"></canvas>
+                </div>
+                <div class="preview-controls">
+                    <strong>预览控制：</strong><br>
+                    • 左键拖动：旋转模型<br>
+                    • 右键拖动：平移模型<br>
+                    • 滚轮：缩放模型<br>
+                    • 双击：重置视角
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js 场景设置
+        let scene, camera, renderer, controls, currentMesh = null;
+        
+        function initPreview() {
+            // 检查Three.js是否加载
+            if (typeof THREE === 'undefined') {
+                throw new Error('Three.js库未加载，请检查网络连接或刷新页面');
+            }
+            
+            const canvas = document.getElementById('previewCanvas');
+            const container = canvas.parentElement;
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(
+                75,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(100, 100, 100);
+            camera.lookAt(0, 0, 0);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // 添加轨道控制器
+            try {
+                // 确保OrbitControls已定义
+                if (typeof THREE.OrbitControls === 'undefined') {
+                    console.warn('OrbitControls未定义，等待初始化...');
+                    // 等待一下再试
+                    setTimeout(() => {
+                        if (typeof THREE.OrbitControls !== 'undefined') {
+                            controls = new THREE.OrbitControls(camera, renderer.domElement);
+                            controls.enableDamping = true;
+                            controls.dampingFactor = 0.05;
+                            controls.minDistance = 10;
+                            controls.maxDistance = 500;
+                        } else {
+                            console.error('OrbitControls仍然未定义');
+                        }
+                    }, 100);
+                } else {
+                    controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.05;
+                    controls.minDistance = 10;
+                    controls.maxDistance = 500;
+                }
+            } catch (e) {
+                console.error('OrbitControls初始化失败:', e);
+                // 如果OrbitControls失败，创建一个简化版本
+                controls = {
+                    target: new THREE.Vector3(0, 0, 0),
+                    update: function() {},
+                    reset: function() {}
+                };
+            }
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(50, 50, 50);
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-50, -50, -50);
+            scene.add(directionalLight2);
+            
+            // 添加坐标轴辅助线
+            const axesHelper = new THREE.AxesHelper(50);
+            scene.add(axesHelper);
+            
+            // 添加网格辅助线
+            const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            // 动画循环
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+            
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+            
+            // 双击重置视角
+            renderer.domElement.addEventListener('dblclick', () => {
+                camera.position.set(100, 100, 100);
+                camera.lookAt(0, 0, 0);
+                controls.reset();
+            });
+        }
+        
+        // 解析STL文本并创建几何体
+        function parseSTLText(stlText) {
+            try {
+                const vertices = [];
+                const normals = [];
+                const lines = stlText.split('\n');
+                
+                let currentNormal = null;
+                let currentVertices = [];
+                let facetCount = 0;
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    
+                    if (line.startsWith('facet normal')) {
+                        const match = line.match(/facet normal\s+([\d\.e\+\-]+)\s+([\d\.e\+\-]+)\s+([\d\.e\+\-]+)/);
+                        if (match) {
+                            currentNormal = [
+                                parseFloat(match[1]),
+                                parseFloat(match[2]),
+                                parseFloat(match[3])
+                            ];
+                            currentVertices = [];
+                        }
+                    } else if (line.startsWith('vertex')) {
+                        const match = line.match(/vertex\s+([\d\.e\+\-]+)\s+([\d\.e\+\-]+)\s+([\d\.e\+\-]+)/);
+                        if (match) {
+                            currentVertices.push([
+                                parseFloat(match[1]),
+                                parseFloat(match[2]),
+                                parseFloat(match[3])
+                            ]);
+                        }
+                    } else if (line.startsWith('endfacet')) {
+                        if (currentVertices.length === 3 && currentNormal) {
+                            for (let v of currentVertices) {
+                                vertices.push(...v);
+                                normals.push(...currentNormal);
+                            }
+                            facetCount++;
+                        }
+                        currentNormal = null;
+                        currentVertices = [];
+                    }
+                }
+                
+                if (vertices.length === 0) {
+                    throw new Error('STL文件中没有找到有效的面');
+                }
+                
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+                
+                console.log(`解析完成: ${facetCount}个面, ${vertices.length / 3}个顶点`);
+                return geometry;
+            } catch (error) {
+                console.error('解析STL文本时出错:', error);
+                throw error;
+            }
+        }
+        
+        // 加载STL到预览
+        function loadSTLToPreview(stlContent) {
+            console.log('loadSTLToPreview被调用');
+            
+            // 检查Three.js是否加载
+            if (typeof THREE === 'undefined') {
+                alert('Three.js库未加载，请刷新页面重试');
+                return;
+            }
+            
+            // 检查场景是否初始化
+            if (!scene || !camera || !renderer) {
+                console.error('3D场景未初始化');
+                alert('3D预览场景未初始化，请刷新页面重试');
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.classList.add('show');
+                console.log('显示loading提示');
+            }
+            
+            // 移除之前的模型并彻底清理
+            // 先清理场景中所有网格对象（除了辅助对象）
+            const objectsToRemove = [];
+            scene.children.forEach(child => {
+                if (child instanceof THREE.Mesh && child !== currentMesh) {
+                    objectsToRemove.push(child);
+                }
+            });
+            objectsToRemove.forEach(obj => {
+                scene.remove(obj);
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach(mat => mat.dispose());
+                    } else {
+                        obj.material.dispose();
+                    }
+                }
+            });
+            
+            if (currentMesh) {
+                console.log('移除旧模型');
+                scene.remove(currentMesh);
+                
+                // 清理几何体
+                if (currentMesh.geometry) {
+                    // 清理所有属性
+                    const attrs = currentMesh.geometry.attributes;
+                    if (attrs) {
+                        for (let key in attrs) {
+                            if (attrs[key] && typeof attrs[key].dispose === 'function') {
+                                attrs[key].dispose();
+                            }
+                        }
+                    }
+                    // 清理索引
+                    if (currentMesh.geometry.index && typeof currentMesh.geometry.index.dispose === 'function') {
+                        currentMesh.geometry.index.dispose();
+                    }
+                    // 清理几何体
+                    if (typeof currentMesh.geometry.dispose === 'function') {
+                        currentMesh.geometry.dispose();
+                    }
+                }
+                
+                // 清理材质
+                if (currentMesh.material) {
+                    if (Array.isArray(currentMesh.material)) {
+                        currentMesh.material.forEach(mat => {
+                            if (mat && typeof mat.dispose === 'function') {
+                                mat.dispose();
+                            }
+                        });
+                    } else {
+                        if (typeof currentMesh.material.dispose === 'function') {
+                            currentMesh.material.dispose();
+                        }
+                    }
+                }
+                
+                currentMesh = null;
+                console.log('旧模型已清理');
+            }
+            
+            // 解析STL内容（使用setTimeout确保在下一事件循环执行）
+            setTimeout(() => {
+                try {
+                    console.log('开始解析STL内容...');
+                    console.log('STL内容是否存在:', !!stlContent);
+                    
+                    if (!stlContent || stlContent.trim().length === 0) {
+                        throw new Error('STL内容为空');
+                    }
+                    
+                    console.log('STL内容长度:', stlContent.length);
+                    
+                    const geometry = parseSTLText(stlContent);
+                    
+                    if (!geometry) {
+                        throw new Error('几何体创建失败');
+                    }
+                    
+                    if (!geometry.attributes || !geometry.attributes.position) {
+                        throw new Error('几何体缺少位置属性');
+                    }
+                    
+                    if (geometry.attributes.position.count === 0) {
+                        throw new Error('几何体没有顶点');
+                    }
+                    
+                    console.log('几何体创建成功，顶点数:', geometry.attributes.position.count);
+                    
+                    // 计算几何中心并居中
+                    geometry.computeBoundingBox();
+                    if (!geometry.boundingBox) {
+                        throw new Error('无法计算边界框');
+                    }
+                    
+                    const center = new THREE.Vector3();
+                    geometry.boundingBox.getCenter(center);
+                    
+                    const positions = geometry.attributes.position;
+                    
+                    // 居中所有顶点
+                    for (let i = 0; i < positions.count; i++) {
+                        positions.setX(i, positions.getX(i) - center.x);
+                        positions.setY(i, positions.getY(i) - center.y);
+                        positions.setZ(i, positions.getZ(i) - center.z);
+                    }
+                    positions.needsUpdate = true;
+                    
+                    // 重新计算法线（使用平滑法线，避免背面剔除问题）
+                    geometry.computeVertexNormals();
+                    
+                    // 确保所有面的法线都指向外部
+                    // 通过检查每个面的法线方向，如果指向内部则反转
+                    const normals = geometry.attributes.normal;
+                    
+                    // 重新计算中心（因为顶点已经居中，现在中心应该在原点）
+                    geometry.computeBoundingBox();
+                    const newCenter = new THREE.Vector3();
+                    geometry.boundingBox.getCenter(newCenter);
+                    
+                    // 对于每个顶点，检查法线方向
+                    for (let i = 0; i < positions.count; i += 3) {
+                        // 获取三角形的三个顶点
+                        const v1 = new THREE.Vector3(
+                            positions.getX(i),
+                            positions.getY(i),
+                            positions.getZ(i)
+                        );
+                        const v2 = new THREE.Vector3(
+                            positions.getX(i + 1),
+                            positions.getY(i + 1),
+                            positions.getZ(i + 1)
+                        );
+                        const v3 = new THREE.Vector3(
+                            positions.getX(i + 2),
+                            positions.getY(i + 2),
+                            positions.getZ(i + 2)
+                        );
+                        
+                        // 计算三角形中心
+                        const triCenter = new THREE.Vector3()
+                            .add(v1).add(v2).add(v3)
+                            .divideScalar(3);
+                        
+                        // 获取法线
+                        const normal = new THREE.Vector3(
+                            normals.getX(i),
+                            normals.getY(i),
+                            normals.getZ(i)
+                        );
+                        
+                        // 计算从旋转轴（y轴）到三角形中心的方向
+                        // 注意：顶点已经居中，所以从原点(0,0,0)计算
+                        const toCenter = new THREE.Vector3(triCenter.x, 0, triCenter.z);
+                        const distFromAxis = toCenter.length();
+                        
+                        if (distFromAxis > 0.01) {
+                            toCenter.normalize();
+                            
+                            // 计算法线在xz平面的投影
+                            const normalXZ = new THREE.Vector3(normal.x, 0, normal.z);
+                            const normalXZLen = normalXZ.length();
+                            
+                            if (normalXZLen > 0.01) {
+                                normalXZ.normalize();
+                                
+                                // 如果法线与指向中心的方向点积为负，说明指向内部
+                                const dot = toCenter.dot(normalXZ);
+                                
+                                if (dot < 0) {
+                                    // 反转法线
+                                    for (let j = 0; j < 3; j++) {
+                                        normals.setX(i + j, -normals.getX(i + j));
+                                        normals.setY(i + j, -normals.getY(i + j));
+                                        normals.setZ(i + j, -normals.getZ(i + j));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    normals.needsUpdate = true;
+                    
+                    // 创建材质（禁用背面剔除，确保所有面都能看到）
+                    const material = new THREE.MeshPhongMaterial({
+                        color: 0x667eea,
+                        specular: 0x111111,
+                        shininess: 200,
+                        flatShading: false,
+                        side: THREE.DoubleSide  // 双面渲染，确保凹面也能看到
+                    });
+                    
+                    // 创建网格
+                    currentMesh = new THREE.Mesh(geometry, material);
+                    scene.add(currentMesh);
+                    
+                    console.log('新网格已添加到场景，场景中的对象数:', scene.children.length);
+                    console.log('当前网格顶点数:', geometry.attributes.position.count);
+                    
+                    // 调整相机位置以适应模型
+                    geometry.computeBoundingSphere();
+                    const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 50;
+                    const distance = Math.max(radius * 3, 10);
+                    
+                    if (distance > 0 && isFinite(distance) && distance < 10000) {
+                        camera.position.set(distance, distance, distance);
+                        camera.lookAt(0, 0, 0);
+                        if (controls && controls.target) {
+                            controls.target.set(0, 0, 0);
+                            if (typeof controls.update === 'function') {
+                                controls.update();
+                            }
+                        }
+                    }
+                    
+                    console.log('预览加载完成');
+                    if (loading) {
+                        loading.classList.remove('show');
+                    }
+                } catch (error) {
+                    console.error('预览加载失败:', error);
+                    console.error('错误堆栈:', error.stack);
+                    if (loading) {
+                        loading.classList.remove('show');
+                    }
+                    const errorMsg = document.getElementById('errorMsg');
+                    if (errorMsg) {
+                        errorMsg.style.display = 'block';
+                        errorMsg.textContent = '预览加载失败: ' + error.message + '。但STL文件已生成。请检查浏览器控制台查看详细信息。';
+                    }
+                    alert('预览加载失败: ' + error.message + '\n请检查浏览器控制台（F12）查看详细信息。');
+                }
+            }, 50);
+        }
+        
+        // 解析输入的点坐标
+        function parsePoints(text) {
+            const lines = text.trim().split('\n');
+            const points = [];
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                
+                // 支持两种格式：x, y 或 x y
+                const match = line.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+                if (match) {
+                    const x = parseFloat(match[1]);
+                    const y = parseFloat(match[2]);
+                    points.push([x, y]);
+                }
+            }
+            
+            return points;
+        }
+        
+        // 向量叉积
+        function crossProduct(v1, v2) {
+            return [
+                v1[1] * v2[2] - v1[2] * v2[1],
+                v1[2] * v2[0] - v1[0] * v2[2],
+                v1[0] * v2[1] - v1[1] * v2[0]
+            ];
+        }
+        
+        // 向量减法
+        function subtract(v1, v2) {
+            return [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]];
+        }
+        
+        // 向量归一化
+        function normalize(v) {
+            const norm = Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+            if (norm > 0) {
+                return [v[0]/norm, v[1]/norm, v[2]/norm];
+            }
+            return [0, 0, 0];
+        }
+        
+        // 保存最后生成的STL内容
+        let lastSTLContent = null;
+        
+        // 生成STL文件
+        function generateSTL() {
+            const pointsText = document.getElementById('points').value;
+            const segments = parseInt(document.getElementById('segments').value) || 128;
+            const resultDiv = document.getElementById('result');
+            const resultInfo = document.getElementById('resultInfo');
+            const errorMsg = document.getElementById('errorMsg');
+            const successMsg = document.getElementById('successMsg');
+            
+            // 隐藏消息
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            resultDiv.classList.add('show');
+            
+            try {
+                // 解析点
+                const profilePoints = parsePoints(pointsText);
+                
+                if (profilePoints.length < 3) {
+                    throw new Error('至少需要3个点才能形成轮廓！');
+                }
+                
+                // 生成STL内容
+                const stlContent = generateSTLContent(profilePoints, segments);
+                lastSTLContent = stlContent;
+                
+                // 计算统计信息
+                const numProfilePoints = profilePoints.length;
+                const numRotationSegments = segments;
+                const numVertices = (numRotationSegments + 1) * numProfilePoints;
+                const numFaces = numRotationSegments * (numProfilePoints - 1) * 2;
+                
+                // 下载文件
+                const blob = new Blob([stlContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'revolution.stl';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // 显示成功信息
+                resultInfo.innerHTML = `
+                    <strong>✓ STL文件生成成功！</strong><br>
+                    轮廓点数: ${numProfilePoints}<br>
+                    旋转分段数: ${numRotationSegments}<br>
+                    顶点数: ${numVertices}<br>
+                    面数: ${numFaces}<br>
+                    文件已自动下载为 <code>revolution.stl</code><br>
+                    <small>点击"预览模型"按钮查看3D预览</small>
+                `;
+                successMsg.style.display = 'block';
+                successMsg.textContent = '文件已成功下载到您的下载文件夹！';
+                
+            } catch (error) {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = '错误: ' + error.message;
+                resultInfo.innerHTML = '';
+            }
+        }
+        
+        // 预览模型
+        function previewModel() {
+            console.log('previewModel被调用');
+            const pointsText = document.getElementById('points').value;
+            const segments = parseInt(document.getElementById('segments').value) || 128;
+            const errorMsg = document.getElementById('errorMsg');
+            const successMsg = document.getElementById('successMsg');
+            
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
+            try {
+                // 检查场景是否初始化
+                if (!scene || !camera || !renderer) {
+                    throw new Error('3D预览场景未初始化，请刷新页面');
+                }
+                
+                // 每次都重新生成STL内容，确保预览的是最新的模型
+                console.log('重新生成STL内容用于预览');
+                const profilePoints = parsePoints(pointsText);
+                
+                if (profilePoints.length < 3) {
+                    throw new Error('至少需要3个点才能形成轮廓！');
+                }
+                
+                // 生成STL内容
+                const stlContent = generateSTLContent(profilePoints, segments);
+                
+                // 调用预览函数
+                console.log('准备加载预览，STL内容长度:', stlContent ? stlContent.length : 0);
+                loadSTLToPreview(stlContent);
+                
+            } catch (error) {
+                console.error('previewModel错误:', error);
+                if (errorMsg) {
+                    errorMsg.style.display = 'block';
+                    errorMsg.textContent = '预览错误: ' + error.message;
+                }
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.classList.remove('show');
+                }
+            }
+        }
+        
+        // 生成STL内容（提取为独立函数）
+        function generateSTLContent(profilePoints, segments) {
+            const numProfilePoints = profilePoints.length;
+            const numRotationSegments = segments;
+            const vertices = [];
+            const faces = [];
+            
+            // 生成所有顶点
+            for (let i = 0; i <= numRotationSegments; i++) {
+                const angle = 2 * Math.PI * i / numRotationSegments;
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                
+                for (let j = 0; j < numProfilePoints; j++) {
+                    const [x, z] = profilePoints[j];
+                    const xRotated = x * cosA;
+                    const zRotated = x * sinA;
+                    const yCoord = z;
+                    
+                    vertices.push([xRotated, yCoord, zRotated]);
+                }
+            }
+            
+            // 生成面
+            for (let i = 0; i < numRotationSegments; i++) {
+                for (let j = 0; j < numProfilePoints - 1; j++) {
+                    const x1 = profilePoints[j][0];
+                    const x2 = profilePoints[j + 1][0];
+                    
+                    if (Math.abs(x1) < 0.001 && Math.abs(x2) < 0.001) {
+                        continue;
+                    }
+                    
+                    const currRingStart = i * numProfilePoints;
+                    const nextRingStart = (i === numRotationSegments - 1) ? 0 : (i + 1) * numProfilePoints;
+                    
+                    const v1Idx = currRingStart + j;
+                    const v2Idx = currRingStart + j + 1;
+                    const v3Idx = nextRingStart + j;
+                    const v4Idx = nextRingStart + j + 1;
+                    
+                    faces.push([v1Idx, v2Idx, v3Idx]);
+                    faces.push([v2Idx, v4Idx, v3Idx]);
+                }
+            }
+            
+            // 生成STL文件内容
+            let stlContent = 'solid revolution\n';
+            
+            for (let face of faces) {
+                let v1 = vertices[face[0]];
+                let v2 = vertices[face[1]];
+                let v3 = vertices[face[2]];
+                
+                const edge1 = subtract(v2, v1);
+                const edge2 = subtract(v3, v1);
+                const normal = crossProduct(edge1, edge2);
+                const normalLen = Math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2);
+                
+                if (normalLen < 0.0001) {
+                    continue;
+                }
+                
+                let normalNorm = normalize(normal);
+                
+                const center = [
+                    (v1[0] + v2[0] + v3[0]) / 3.0,
+                    (v1[1] + v2[1] + v3[1]) / 3.0,
+                    (v1[2] + v2[2] + v3[2]) / 3.0
+                ];
+                
+                // 改进的法线修正逻辑：确保法线指向外部
+                // 对于旋转体，法线应该从旋转轴指向外部
+                const toCenterX = center[0];
+                const toCenterZ = center[2];
+                const distFromAxisSq = toCenterX**2 + toCenterZ**2;
+                
+                if (distFromAxisSq > 0.0001) {
+                    const distFromAxis = Math.sqrt(distFromAxisSq);
+                    // 从旋转轴到面的中心点的方向（应该指向外部）
+                    const dirToCenterX = toCenterX / distFromAxis;
+                    const dirToCenterZ = toCenterZ / distFromAxis;
+                    
+                    // 计算法线在xz平面的投影
+                    const normalXzLenSq = normalNorm[0]**2 + normalNorm[2]**2;
+                    
+                    if (normalXzLenSq > 0.0001) {
+                        const normalXzLen = Math.sqrt(normalXzLenSq);
+                        const normalXzX = normalNorm[0] / normalXzLen;
+                        const normalXzZ = normalNorm[2] / normalXzLen;
+                        
+                        // 计算点积：如果为负，说明法线指向内部（朝向旋转轴）
+                        const dot = dirToCenterX * normalXzX + dirToCenterZ * normalXzZ;
+                        
+                        if (dot < 0) {
+                            // 法线指向内部，需要反转
+                            normalNorm = [-normalNorm[0], -normalNorm[1], -normalNorm[2]];
+                            // 同时反转顶点顺序以保持一致性
+                            const temp = v2;
+                            v2 = v3;
+                            v3 = temp;
+                        }
+                    } else {
+                        // 法线主要是y方向（水平面），根据面的位置判断
+                        // 对于旋转体的水平面，法线方向应该根据面的实际位置来判断
+                        // 这里保持原样，因为水平面的法线通常已经正确
+                    }
+                } else {
+                    // 面在旋转轴上，法线方向需要特殊处理
+                    // 对于旋转轴上的面，法线应该根据面的实际方向判断
+                    // 这里保持原样
+                }
+                
+                stlContent += `  facet normal ${normalNorm[0].toExponential(6)} ${normalNorm[1].toExponential(6)} ${normalNorm[2].toExponential(6)}\n`;
+                stlContent += '    outer loop\n';
+                stlContent += `      vertex ${v1[0].toExponential(6)} ${v1[1].toExponential(6)} ${v1[2].toExponential(6)}\n`;
+                stlContent += `      vertex ${v2[0].toExponential(6)} ${v2[1].toExponential(6)} ${v2[2].toExponential(6)}\n`;
+                stlContent += `      vertex ${v3[0].toExponential(6)} ${v3[1].toExponential(6)} ${v3[2].toExponential(6)}\n`;
+                stlContent += '    endloop\n';
+                stlContent += '  endfacet\n';
+            }
+            
+            stlContent += 'endsolid revolution\n';
+            return stlContent;
+        }
+        
+        // 加载示例
+        function loadExample() {
+            document.getElementById('points').value = `0, 0
+-35, 0
+-35, 5
+-25, 5
+-25, 20
+-20, 20
+-20, 10
+0, 10`;
+        }
+        
+        // 清空
+        function clearAll() {
+            document.getElementById('points').value = '';
+            document.getElementById('segments').value = '128';
+            document.getElementById('result').classList.remove('show');
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                if (currentMesh.geometry) currentMesh.geometry.dispose();
+                if (currentMesh.material) currentMesh.material.dispose();
+                currentMesh = null;
+            }
+        }
+        
+        // 坐标系相关变量
+        let coordinatePoints = [];
+        let coordCanvas, coordCtx;
+        let coordScale = 5; // 缩放比例：1像素 = coordScale单位
+        let coordCenterX = 0, coordCenterY = 0; // 坐标系中心（实际坐标）
+        
+        // 初始化坐标系
+        function initCoordinate() {
+            coordCanvas = document.getElementById('coordinateCanvas');
+            coordCtx = coordCanvas.getContext('2d');
+            
+            // 设置画布大小
+            const container = coordCanvas.parentElement;
+            coordCanvas.width = container.clientWidth;
+            coordCanvas.height = container.clientHeight;
+            
+            // 计算坐标系中心（在画布上的位置）
+            coordCenterX = coordCanvas.width / 2;
+            coordCenterY = coordCanvas.height / 2;
+            
+            // 绘制坐标系
+            drawCoordinate();
+            
+            // 从文本框同步初始点
+            syncFromText();
+            
+            // 添加点击事件
+            coordCanvas.addEventListener('click', (e) => {
+                const rect = coordCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // 转换为实际坐标
+                const realX = (x - coordCenterX) / coordScale;
+                const realY = (coordCenterY - y) / coordScale; // Y轴翻转
+                
+                // 添加点
+                coordinatePoints.push([realX, realY]);
+                updatePointsText();
+                drawCoordinate();
+            });
+            
+            // 右键删除最后一点
+            coordCanvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (coordinatePoints.length > 0) {
+                    coordinatePoints.pop();
+                    updatePointsText();
+                    drawCoordinate();
+                }
+            });
+            
+            // 双击清空
+            coordCanvas.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                coordinatePoints = [];
+                updatePointsText();
+                drawCoordinate();
+            });
+            
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                const container = coordCanvas.parentElement;
+                coordCanvas.width = container.clientWidth;
+                coordCanvas.height = container.clientHeight;
+                coordCenterX = coordCanvas.width / 2;
+                coordCenterY = coordCanvas.height / 2;
+                drawCoordinate();
+            });
+        }
+        
+        // 绘制坐标系
+        function drawCoordinate() {
+            const ctx = coordCtx;
+            const width = coordCanvas.width;
+            const height = coordCanvas.height;
+            
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+            
+            // 绘制背景网格
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            
+            // 垂直网格线
+            for (let x = coordCenterX % (coordScale * 10); x < width; x += coordScale * 10) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            
+            // 水平网格线
+            for (let y = coordCenterY % (coordScale * 10); y < height; y += coordScale * 10) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+            
+            // 绘制坐标轴
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            
+            // X轴
+            ctx.beginPath();
+            ctx.moveTo(0, coordCenterY);
+            ctx.lineTo(width, coordCenterY);
+            ctx.stroke();
+            
+            // Y轴
+            ctx.beginPath();
+            ctx.moveTo(coordCenterX, 0);
+            ctx.lineTo(coordCenterX, height);
+            ctx.stroke();
+            
+            // 绘制坐标轴标签
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            // X轴标签
+            for (let x = coordCenterX; x < width; x += coordScale * 20) {
+                const value = (x - coordCenterX) / coordScale;
+                if (Math.abs(value) > 0.1) {
+                    ctx.fillText(value.toFixed(0), x, coordCenterY + 5);
+                }
+            }
+            for (let x = coordCenterX; x > 0; x -= coordScale * 20) {
+                const value = (x - coordCenterX) / coordScale;
+                if (Math.abs(value) > 0.1) {
+                    ctx.fillText(value.toFixed(0), x, coordCenterY + 5);
+                }
+            }
+            
+            // Y轴标签
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let y = coordCenterY; y < height; y += coordScale * 20) {
+                const value = (coordCenterY - y) / coordScale;
+                if (Math.abs(value) > 0.1) {
+                    ctx.fillText(value.toFixed(0), coordCenterX - 5, y);
+                }
+            }
+            for (let y = coordCenterY; y > 0; y -= coordScale * 20) {
+                const value = (coordCenterY - y) / coordScale;
+                if (Math.abs(value) > 0.1) {
+                    ctx.fillText(value.toFixed(0), coordCenterX - 5, y);
+                }
+            }
+            
+            // 绘制点
+            if (coordinatePoints.length > 0) {
+                // 绘制连线
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < coordinatePoints.length; i++) {
+                    const [x, y] = coordinatePoints[i];
+                    const canvasX = coordCenterX + x * coordScale;
+                    const canvasY = coordCenterY - y * coordScale;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(canvasX, canvasY);
+                    } else {
+                        ctx.lineTo(canvasX, canvasY);
+                    }
+                }
+                ctx.stroke();
+                
+                // 绘制点
+                ctx.fillStyle = '#667eea';
+                for (let i = 0; i < coordinatePoints.length; i++) {
+                    const [x, y] = coordinatePoints[i];
+                    const canvasX = coordCenterX + x * coordScale;
+                    const canvasY = coordCenterY - y * coordScale;
+                    
+                    ctx.beginPath();
+                    ctx.arc(canvasX, canvasY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 绘制点序号
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(i + 1, canvasX, canvasY);
+                    ctx.fillStyle = '#667eea';
+                }
+            }
+        }
+        
+        // 更新文本框
+        function updatePointsText() {
+            const textarea = document.getElementById('points');
+            textarea.value = coordinatePoints.map(p => `${p[0]}, ${p[1]}`).join('\n');
+        }
+        
+        // 从文本框同步到坐标系
+        function syncFromText() {
+            const pointsText = document.getElementById('points').value;
+            const points = parsePoints(pointsText);
+            coordinatePoints = points;
+            drawCoordinate();
+        }
+        
+        // 从坐标系同步到文本框（当文本框改变时）
+        function syncToCoordinate() {
+            // 延迟执行，避免循环更新
+            setTimeout(() => {
+                const pointsText = document.getElementById('points').value;
+                const points = parsePoints(pointsText);
+                if (JSON.stringify(points) !== JSON.stringify(coordinatePoints)) {
+                    coordinatePoints = points;
+                    drawCoordinate();
+                }
+            }, 100);
+        }
+        
+        // 清空坐标系点
+        function clearCoordinatePoints() {
+            coordinatePoints = [];
+            updatePointsText();
+            drawCoordinate();
+        }
+        
+        // 删除最后一点
+        function deleteLastPoint() {
+            if (coordinatePoints.length > 0) {
+                coordinatePoints.pop();
+                updatePointsText();
+                drawCoordinate();
+            }
+        }
+        
+        // 页面加载时初始化预览和坐标系
+        window.addEventListener('load', () => {
+            // 等待Three.js加载完成
+            function waitForThree() {
+                if (typeof THREE !== 'undefined') {
+                    console.log('Three.js已加载，开始初始化预览');
+                    try {
+                        initPreview();
+                        initCoordinate();
+                    } catch (error) {
+                        console.error('初始化失败:', error);
+                        alert('初始化失败: ' + error.message + '\n请刷新页面重试');
+                    }
+                } else {
+                    console.log('等待Three.js加载...');
+                    setTimeout(waitForThree, 100);
+                }
+            }
+            waitForThree();
+        });
+    </script>
+</body>
+</html>
