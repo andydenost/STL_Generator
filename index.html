@@ -407,34 +407,135 @@
             font-size: 12px;
             color: #666;
         }
+
+        /* Profile library (saved cross-sections) */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 9999;
+            padding: 24px;
+            display: none;
+        }
+
+        .modal.show {
+            display: block;
+        }
+
+        .modal-content {
+            max-width: 980px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-topbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-actions {
+            margin: 12px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .modal-actions input {
+            flex: 1;
+            min-width: 220px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .profile-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px;
+            margin: 10px 0;
+            background: #fafafa;
+        }
+
+        .profile-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .profile-actions button {
+            flex: initial;
+            padding: 10px 14px;
+            font-size: 14px;
+        }
+
+        .profile-meta {
+            color: #6b7280;
+            font-size: 12px;
+            margin-top: 6px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔄 旋转体STL模型生成器（带3D预览）</h1>
-        <p class="subtitle">输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div>
+                <h1 data-i18n-key="title">🔄 旋转体STL模型生成器（带3D预览）</h1>
+                <p class="subtitle" data-i18n-key="subtitle">输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览</p>
+            </div>
+            <div>
+                <label for="langSelect" style="font-size:13px;color:#555;margin-right:6px;" data-i18n-key="langLabel">Language:</label>
+                <select id="langSelect" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:13px;" onchange="setLanguage(this.value)">
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
+                </select>
+            </div>
+        </div>
         
         <div class="main-content">
             <div class="input-section">
                 <div class="input-group">
-                    <label>交互式坐标系（点击添加点）</label>
+                    <label data-i18n-key="coordLabel">交互式坐标系（点击添加点）</label>
                     <div class="coordinate-section">
                         <div class="coordinate-container">
                             <canvas id="coordinateCanvas"></canvas>
                         </div>
                         <div class="coordinate-controls">
-                            <button class="btn-secondary" onclick="clearCoordinatePoints()">清空所有点</button>
-                            <button class="btn-secondary" onclick="deleteLastPoint()">删除最后一点</button>
-                            <button class="btn-secondary" onclick="syncFromText()">从文本框同步</button>
+                            <button class="btn-secondary" onclick="clearCoordinatePoints()" data-i18n-key="btnClearPoints">清空所有点</button>
+                            <button class="btn-secondary" onclick="deleteLastPoint()" data-i18n-key="btnDeleteLast">删除最后一点</button>
+                            <button class="btn-secondary" onclick="syncFromText()" data-i18n-key="btnSyncFromText">从文本框同步</button>
                         </div>
                         <div class="coordinate-info">
-                            <strong>操作说明：</strong>点击坐标系添加点 | 右键点击删除最近的点 | 双击清空所有点
+                            <strong data-i18n-key="coordOpsTitle">操作说明：</strong><span data-i18n-key="coordOpsText">点击坐标系添加点 | 右键点击删除最近的点 | 双击清空所有点</span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="input-group">
-                    <label for="points">轮廓点坐标（每行一个点，格式：x, y 或 x y）</label>
+                    <label for="points" data-i18n-key="pointsLabel">轮廓点坐标（每行一个点，格式：x, y 或 x y）</label>
                     <textarea id="points" oninput="syncToCoordinate()">0, 0
 -35, 0
 -35, 5
@@ -444,28 +545,34 @@
 -20, 10
 0, 10</textarea>
                     <div class="help-text">
-                        <strong>使用说明：</strong><br>
-                        • 每行输入一个点的坐标，格式为 <code>x, y</code> 或 <code>x y</code><br>
-                        • x坐标：水平方向（旋转轴为y轴）<br>
-                        • y坐标：垂直方向（旋转体的高度）<br>
-                        • 点按顺序连接形成轮廓，最后一个点会自动连接到第一个点<br>
-                        • 建议从旋转轴（x=0）开始，形成闭合轮廓
+                        <span data-i18n-key="pointsHelpTitle"><strong>使用说明：</strong></span><br>
+                        <span data-i18n-key="pointsHelpLine1">• 每行输入一个点的坐标，格式为 <code>x, y</code> 或 <code>x y</code></span><br>
+                        <span data-i18n-key="pointsHelpLine2">• x坐标：水平方向（旋转轴为y轴）</span><br>
+                        <span data-i18n-key="pointsHelpLine3">• y坐标：垂直方向（旋转体的高度）</span><br>
+                        <span data-i18n-key="pointsHelpLine4">• 点按顺序连接形成轮廓，最后一个点会自动连接到第一个点</span><br>
+                        <span data-i18n-key="pointsHelpLine5">• 建议从旋转轴（x=0）开始，形成闭合轮廓</span>
                     </div>
                 </div>
                 
                 <div class="input-group">
-                    <label for="segments">旋转分段数（精度，越大越平滑）：</label>
+                    <label for="segments" data-i18n-key="segmentsLabel">旋转分段数（精度，越大越平滑）：</label>
                     <input type="number" id="segments" value="128" min="32" max="512">
                     <div class="help-text">
-                        推荐值：64-256。数值越大，模型越平滑，但文件也越大。
+                        <span data-i18n-key="segmentsHelp">推荐值：64-256。数值越大，模型越平滑，但文件也越大。</span>
                     </div>
                 </div>
                 
                 <div class="button-group">
-                    <button class="btn-primary" onclick="generateSTL()">生成并下载STL</button>
-                    <button class="btn-success" onclick="previewModel()">预览模型</button>
-                    <button class="btn-secondary" onclick="loadExample()">加载示例</button>
-                    <button class="btn-secondary" onclick="clearAll()">清空</button>
+                    <button class="btn-primary" onclick="generateSTL()" data-i18n-key="btnGenSTL">生成并下载STL</button>
+                    <button class="btn-success" onclick="previewModel()" data-i18n-key="btnPreview">预览模型</button>
+                    <button class="btn-secondary" onclick="loadExample()" data-i18n-key="btnLoadExample">加载示例</button>
+                    <button class="btn-secondary" onclick="clearAll()" data-i18n-key="btnClearAll">清空</button>
+                </div>
+                <div class="button-group">
+                <button class="btn-secondary" onclick="saveProfile()" data-i18n-key="btnSaveProfile">保存截面</button>
+                <button class="btn-secondary" onclick="openProfileManager()" data-i18n-key="btnOpenProfileLib">截面库</button>
+                <button class="btn-secondary" onclick="exportProfiles()" data-i18n-key="btnExportProfiles">导出库</button>
+                <button class="btn-secondary" onclick="importProfiles()" data-i18n-key="btnImportProfiles">导入库</button>
                 </div>
                 
                 <div id="result" class="result-section">
@@ -481,19 +588,140 @@
                     <canvas id="previewCanvas"></canvas>
                 </div>
                 <div class="preview-controls">
-                    <strong>预览控制：</strong><br>
-                    • 左键拖动：旋转模型<br>
-                    • 右键拖动：平移模型<br>
-                    • 滚轮：缩放模型<br>
-                    • 双击：重置视角
+                    <strong data-i18n-key="previewCtrlTitle">预览控制：</strong><br>
+                    <span data-i18n-key="previewCtrlLine1">• 左键拖动：旋转模型</span><br>
+                    <span data-i18n-key="previewCtrlLine2">• 右键拖动：平移模型</span><br>
+                    <span data-i18n-key="previewCtrlLine3">• 滚轮：缩放模型</span><br>
+                    <span data-i18n-key="previewCtrlLine4">• 双击：重置视角</span>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Saved cross-sections / profile library -->
+    <div id="profileModal" class="modal" onclick="onProfileModalBackdrop(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-topbar">
+                <strong data-i18n-key="profileLibTitle">截面库</strong>
+                <button class="btn-secondary" onclick="closeProfileManager()" data-i18n-key="btnCloseProfileLib">关闭</button>
+            </div>
+            <div class="modal-actions">
+                <input id="profileSearch" placeholder="搜索名称…" oninput="renderProfileList()" />
+                <button class="btn-secondary" onclick="exportProfiles()" data-i18n-key="btnExportProfiles">导出库</button>
+                <button class="btn-secondary" onclick="importProfiles()" data-i18n-key="btnImportProfiles">导入库</button>
+                <button class="btn-secondary" onclick="clearProfiles()" data-i18n-key="btnClearProfiles">清空库</button>
+            </div>
+            <div id="profileList"></div>
         </div>
     </div>
 
     <script>
         // Three.js 场景设置
         let scene, camera, renderer, controls, currentMesh = null;
+        // 多语言
+        const I18N = {
+            en: {
+                title: '🔄 Revolved STL Model Generator (with 3D Preview)',
+                subtitle: 'Input profile points to generate a 360° revolved STL model with live preview.',
+                langLabel: 'Language:',
+                coordLabel: 'Interactive coordinate system (click to add points)',
+                btnClearPoints: 'Clear all points',
+                btnDeleteLast: 'Delete last point',
+                btnSyncFromText: 'Sync from text',
+                coordOpsTitle: 'Instructions:',
+                coordOpsText: 'Click to add point | Right-click to delete last point | Double-click to clear all points',
+                pointsLabel: 'Profile points (one point per line, format: x, y or x y)',
+                pointsHelpTitle: '<strong>Instructions:</strong>',
+                pointsHelpLine1: '• Each line is one point, format <code>x, y</code> or <code>x y</code>',
+                pointsHelpLine2: '• x: horizontal (revolve axis is y-axis)',
+                pointsHelpLine3: '• y: vertical (height of the revolved body)',
+                pointsHelpLine4: '• Points are connected in order to form the profile curve',
+                pointsHelpLine5: '• The profile does not have to be closed; use the example button to see typical shapes',
+                segmentsLabel: 'Revolution segments (precision, higher = smoother):',
+                segmentsHelp: 'Recommended: 64–256. Higher = smoother model, larger file.',
+                btnGenSTL: 'Generate & download STL',
+                btnPreview: 'Preview model',
+                btnLoadExample: 'Load example',
+                btnClearAll: 'Clear',
+                previewCtrlTitle: 'Preview controls:',
+                previewCtrlLine1: '• Left drag: rotate model',
+                previewCtrlLine2: '• Right drag: pan model',
+                previewCtrlLine3: '• Wheel: zoom',
+                previewCtrlLine4: '• Double-click: reset view',
+                btnSaveProfile: 'Save profile',
+                btnOpenProfileLib: 'Profile library',
+                btnExportProfiles: 'Export',
+                btnImportProfiles: 'Import',
+                btnClearProfiles: 'Clear library',
+                profileLibTitle: 'Profile library',
+                btnCloseProfileLib: 'Close'
+            },
+            zh: {
+                title: '🔄 旋转体STL模型生成器（带3D预览）',
+                subtitle: '输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览',
+                langLabel: '语言：',
+                coordLabel: '交互式坐标系（点击添加点）',
+                btnClearPoints: '清空所有点',
+                btnDeleteLast: '删除最后一点',
+                btnSyncFromText: '从文本框同步',
+                coordOpsTitle: '操作说明：',
+                coordOpsText: '点击坐标系添加点 | 右键点击删除最近的点 | 双击清空所有点',
+                pointsLabel: '轮廓点坐标（每行一个点，格式：x, y 或 x y）',
+                pointsHelpTitle: '<strong>使用说明：</strong>',
+                pointsHelpLine1: '• 每行输入一个点的坐标，格式为 <code>x, y</code> 或 <code>x y</code>',
+                pointsHelpLine2: '• x坐标：水平方向（旋转轴为y轴）',
+                pointsHelpLine3: '• y坐标：垂直方向（旋转体的高度）',
+                pointsHelpLine4: '• 点按顺序连接形成轮廓曲线',
+                pointsHelpLine5: '• 轮廓不一定要闭合，可点击“加载示例”查看常见形状写法',
+                segmentsLabel: '旋转分段数（精度，越大越平滑）：',
+                segmentsHelp: '推荐值：64-256。数值越大，模型越平滑，但文件也越大。',
+                btnGenSTL: '生成并下载STL',
+                btnPreview: '预览模型',
+                btnLoadExample: '加载示例',
+                btnClearAll: '清空',
+                previewCtrlTitle: '预览控制：',
+                previewCtrlLine1: '• 左键拖动：旋转模型',
+                previewCtrlLine2: '• 右键拖动：平移模型',
+                previewCtrlLine3: '• 滚轮：缩放模型',
+                previewCtrlLine4: '• 双击：重置视角',
+                btnSaveProfile: '保存截面',
+                btnOpenProfileLib: '截面库',
+                btnExportProfiles: '导出库',
+                btnImportProfiles: '导入库',
+                btnClearProfiles: '清空库',
+                profileLibTitle: '截面库',
+                btnCloseProfileLib: '关闭'
+            }
+        };
+
+        function applyLanguage(lang) {
+            const dict = I18N[lang] || I18N.en;
+            document.querySelectorAll('[data-i18n-key]').forEach(el => {
+                const key = el.getAttribute('data-i18n-key');
+                const val = dict[key];
+                if (val == null) return;
+                // 对包含 HTML 的文本使用 innerHTML
+                if (key === 'pointsHelpTitle' || key === 'pointsHelpLine1') {
+                    el.innerHTML = val;
+                } else {
+                    el.textContent = val;
+                }
+            });
+        }
+
+        function setLanguage(lang) {
+            localStorage.setItem('revolve_lang', lang);
+            const select = document.getElementById('langSelect');
+            if (select && select.value !== lang) select.value = lang;
+            applyLanguage(lang);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('revolve_lang') || 'en';
+            const select = document.getElementById('langSelect');
+            if (select) select.value = saved;
+            applyLanguage(saved);
+        });
         
         function initPreview() {
             // 检查Three.js是否加载
@@ -995,11 +1223,9 @@
                 const stlContent = generateSTLContent(profilePoints, segments);
                 lastSTLContent = stlContent;
                 
-                // 计算统计信息
+                const { vertices: meshV, faces: meshF } = getMeshData(profilePoints, segments);
                 const numProfilePoints = profilePoints.length;
                 const numRotationSegments = segments;
-                const numVertices = (numRotationSegments + 1) * numProfilePoints;
-                const numFaces = numRotationSegments * (numProfilePoints - 1) * 2;
                 
                 // 下载文件
                 const blob = new Blob([stlContent], { type: 'text/plain' });
@@ -1017,8 +1243,8 @@
                     <strong>✓ STL文件生成成功！</strong><br>
                     轮廓点数: ${numProfilePoints}<br>
                     旋转分段数: ${numRotationSegments}<br>
-                    顶点数: ${numVertices}<br>
-                    面数: ${numFaces}<br>
+                    顶点数: ${meshV.length}<br>
+                    面数: ${meshF.length}<br>
                     文件已自动下载为 <code>revolution.stl</code><br>
                     <small>点击"预览模型"按钮查看3D预览</small>
                 `;
@@ -1030,6 +1256,254 @@
                 errorMsg.textContent = '错误: ' + error.message;
                 resultInfo.innerHTML = '';
             }
+        }
+
+        // =========================
+        // 截面库（本地保存/管理/导入/导出）
+        // =========================
+        const PROFILES_KEY = 'revolve_profiles_v1';
+
+        function onProfileModalBackdrop(e) {
+            if (e && e.target && e.target.id === 'profileModal') closeProfileManager();
+        }
+
+        function getProfiles() {
+            try {
+                return JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        function setProfiles(list) {
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(list));
+        }
+
+        function nowISO() {
+            return new Date().toISOString();
+        }
+
+        function getCurrentProfilePayload() {
+            return {
+                pointsText: (document.getElementById('points').value || '').trim(),
+                segments: parseInt(document.getElementById('segments').value) || 128
+            };
+        }
+
+        function saveProfile() {
+            const cur = getCurrentProfilePayload();
+            if (!cur.pointsText) {
+                alert('没有坐标可保存。');
+                return;
+            }
+
+            const name = prompt('给这组截面起个名字', '');
+            if (name === null) return;
+
+            const profiles = getProfiles();
+            profiles.unshift({
+                id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
+                name: (name.trim() || `未命名-${new Date().toLocaleString()}`),
+                pointsText: cur.pointsText,
+                segments: cur.segments,
+                savedAt: nowISO(),
+                updatedAt: nowISO()
+            });
+            setProfiles(profiles);
+            alert('已保存到截面库。');
+        }
+
+        function openProfileManager() {
+            const modal = document.getElementById('profileModal');
+            modal.classList.add('show');
+            renderProfileList();
+        }
+
+        function closeProfileManager() {
+            const modal = document.getElementById('profileModal');
+            modal.classList.remove('show');
+        }
+
+        function renderProfileList() {
+            const listDiv = document.getElementById('profileList');
+            const q = (document.getElementById('profileSearch')?.value || '').trim().toLowerCase();
+            const profiles = getProfiles().filter(p => !q || (p.name || '').toLowerCase().includes(q));
+
+            if (!profiles.length) {
+                listDiv.innerHTML = `<div class="profile-item">没有匹配的截面记录。</div>`;
+                return;
+            }
+
+            listDiv.innerHTML = profiles.map(p => {
+                const saved = p.savedAt ? new Date(p.savedAt).toLocaleString() : '';
+                const upd = p.updatedAt ? new Date(p.updatedAt).toLocaleString() : '';
+                const lines = String(p.pointsText || '').split('\n');
+                const ptsPreview = lines.slice(0, 6).join('\n') + (lines.length > 6 ? '\n…' : '');
+                return `
+                    <div class="profile-item">
+                        <div class="profile-row">
+                            <div>
+                                <div><strong>${escapeHtml(p.name || '(未命名)')}</strong></div>
+                                <div style="color:#6b7280;font-size:12px;">
+                                    segments: ${escapeHtml(String(p.segments || 128))} | 保存: ${escapeHtml(saved)}${upd ? ` | 更新: ${escapeHtml(upd)}` : ''}
+                                </div>
+                            </div>
+                            <div class="profile-actions">
+                                <button class="btn-success" onclick="loadProfile('${escapeAttr(p.id)}')">加载</button>
+                                <button class="btn-secondary" onclick="renameProfile('${escapeAttr(p.id)}')">重命名</button>
+                                <button class="btn-secondary" onclick="overwriteProfile('${escapeAttr(p.id)}')">用当前覆盖</button>
+                                <button class="btn-secondary" onclick="downloadOneProfile('${escapeAttr(p.id)}')">导出此条</button>
+                                <button class="btn-secondary" onclick="deleteProfile('${escapeAttr(p.id)}')">删除</button>
+                            </div>
+                        </div>
+                        <div class="profile-meta">${escapeHtml(ptsPreview)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadProfile(id) {
+            const profiles = getProfiles();
+            const p = profiles.find(x => x.id === id);
+            if (!p) {
+                alert('记录不存在。');
+                return;
+            }
+            document.getElementById('points').value = p.pointsText || '';
+            document.getElementById('segments').value = String(p.segments || 128);
+            if (typeof syncToCoordinate === 'function') syncToCoordinate();
+            alert(`已加载：${p.name || ''}`);
+        }
+
+        function renameProfile(id) {
+            const profiles = getProfiles();
+            const p = profiles.find(x => x.id === id);
+            if (!p) return;
+            const name = prompt('新名称', p.name || '');
+            if (name === null) return;
+            p.name = name.trim() || p.name;
+            p.updatedAt = nowISO();
+            setProfiles(profiles);
+            renderProfileList();
+        }
+
+        function overwriteProfile(id) {
+            const cur = getCurrentProfilePayload();
+            if (!cur.pointsText) {
+                alert('当前没有坐标可覆盖。');
+                return;
+            }
+            const profiles = getProfiles();
+            const p = profiles.find(x => x.id === id);
+            if (!p) return;
+            if (!confirm(`确定用当前输入覆盖「${p.name || ''}」吗？`)) return;
+            p.pointsText = cur.pointsText;
+            p.segments = cur.segments;
+            p.updatedAt = nowISO();
+            setProfiles(profiles);
+            renderProfileList();
+        }
+
+        function deleteProfile(id) {
+            const profiles = getProfiles();
+            const p = profiles.find(x => x.id === id);
+            if (!p) return;
+            if (!confirm(`确定删除「${p.name || ''}」吗？`)) return;
+            setProfiles(profiles.filter(x => x.id !== id));
+            renderProfileList();
+        }
+
+        function clearProfiles() {
+            if (!confirm('确定清空整个截面库吗？此操作不可恢复。')) return;
+            setProfiles([]);
+            renderProfileList();
+        }
+
+        function exportProfiles() {
+            const payload = {
+                version: 1,
+                exportedAt: nowISO(),
+                profiles: getProfiles()
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, 'profiles.json');
+        }
+
+        function downloadOneProfile(id) {
+            const profiles = getProfiles();
+            const p = profiles.find(x => x.id === id);
+            if (!p) return;
+            const payload = { version: 1, exportedAt: nowISO(), profiles: [p] };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, `${sanitizeFileName(p.name || 'profile')}.json`);
+        }
+
+        function importProfiles() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json,.json';
+            input.onchange = async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    const incoming = Array.isArray(data?.profiles) ? data.profiles : [];
+                    if (!incoming.length) {
+                        alert('文件里没有 profiles 数据。');
+                        return;
+                    }
+
+                    const existing = getProfiles();
+                    const map = new Map(existing.map(p => [p.id, p]));
+                    for (const p of incoming) {
+                        const id = p.id || (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+                        map.set(id, {
+                            ...p,
+                            id,
+                            savedAt: p.savedAt || nowISO(),
+                            updatedAt: nowISO()
+                        });
+                    }
+                    const merged = Array.from(map.values()).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+                    setProfiles(merged);
+                    alert(`导入成功：${incoming.length} 条。`);
+                    const modal = document.getElementById('profileModal');
+                    if (modal.classList.contains('show')) renderProfileList();
+                } catch (e) {
+                    alert('导入失败：' + (e?.message || e));
+                }
+            };
+            input.click();
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function sanitizeFileName(name) {
+            return String(name).replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80);
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function escapeAttr(s) {
+            // For embedding into single-quoted attributes/JS strings in HTML
+            return String(s).replaceAll('\\', '\\\\').replaceAll("'", "\\'");
         }
         
         // 预览模型
@@ -1077,128 +1551,68 @@
             }
         }
         
-        // 生成STL内容（提取为独立函数）
-        function generateSTLContent(profilePoints, segments) {
+        // 获取网格数据（顶点和面，面顶点顺序已按法线修正）
+        function getMeshData(profilePoints, segments) {
             const numProfilePoints = profilePoints.length;
             const numRotationSegments = segments;
             const vertices = [];
             const faces = [];
             
-            // 生成所有顶点
             for (let i = 0; i <= numRotationSegments; i++) {
                 const angle = 2 * Math.PI * i / numRotationSegments;
                 const cosA = Math.cos(angle);
                 const sinA = Math.sin(angle);
-                
                 for (let j = 0; j < numProfilePoints; j++) {
                     const [x, z] = profilePoints[j];
-                    const xRotated = x * cosA;
-                    const zRotated = x * sinA;
-                    const yCoord = z;
-                    
-                    vertices.push([xRotated, yCoord, zRotated]);
+                    vertices.push([x * cosA, z, x * sinA]);
                 }
             }
             
-            // 生成面
             for (let i = 0; i < numRotationSegments; i++) {
                 for (let j = 0; j < numProfilePoints - 1; j++) {
-                    const x1 = profilePoints[j][0];
-                    const x2 = profilePoints[j + 1][0];
+                    if (Math.abs(profilePoints[j][0]) < 0.001 && Math.abs(profilePoints[j + 1][0]) < 0.001) continue;
+                    const curr = i * numProfilePoints;
+                    const next = (i === numRotationSegments - 1) ? 0 : (i + 1) * numProfilePoints;
+                    const a = curr + j, b = curr + j + 1, c = next + j, d = next + j + 1;
+                    let v1 = vertices[a], v2 = vertices[b], v3 = vertices[c], v4 = vertices[d];
                     
-                    if (Math.abs(x1) < 0.001 && Math.abs(x2) < 0.001) {
-                        continue;
+                    let n = normalize(crossProduct(subtract(v2, v1), subtract(v3, v1)));
+                    const cx = (v1[0] + v2[0] + v3[0]) / 3, cz = (v1[2] + v2[2] + v3[2]) / 3;
+                    const distSq = cx * cx + cz * cz;
+                    let tri1 = [a, b, c];
+                    if (distSq > 0.0001 && (n[0]*n[0] + n[2]*n[2]) > 0.0001) {
+                        const dot = (cx * n[0] + cz * n[2]) / Math.sqrt(distSq * (n[0]*n[0] + n[2]*n[2]));
+                        if (dot < 0) tri1 = [a, c, b];
                     }
+                    faces.push(tri1);
                     
-                    const currRingStart = i * numProfilePoints;
-                    const nextRingStart = (i === numRotationSegments - 1) ? 0 : (i + 1) * numProfilePoints;
-                    
-                    const v1Idx = currRingStart + j;
-                    const v2Idx = currRingStart + j + 1;
-                    const v3Idx = nextRingStart + j;
-                    const v4Idx = nextRingStart + j + 1;
-                    
-                    faces.push([v1Idx, v2Idx, v3Idx]);
-                    faces.push([v2Idx, v4Idx, v3Idx]);
+                    n = normalize(crossProduct(subtract(v4, v2), subtract(v3, v2)));
+                    let tri2 = [b, d, c];
+                    if (distSq > 0.0001 && (n[0]*n[0] + n[2]*n[2]) > 0.0001) {
+                        const dot = (cx * n[0] + cz * n[2]) / Math.sqrt(distSq * (n[0]*n[0] + n[2]*n[2]));
+                        if (dot < 0) tri2 = [b, c, d];
+                    }
+                    faces.push(tri2);
                 }
             }
-            
-            // 生成STL文件内容
+            return { vertices, faces };
+        }
+        
+        // 生成STL内容（提取为独立函数）
+        function generateSTLContent(profilePoints, segments) {
+            const { vertices, faces } = getMeshData(profilePoints, segments);
             let stlContent = 'solid revolution\n';
             
             for (let face of faces) {
-                let v1 = vertices[face[0]];
-                let v2 = vertices[face[1]];
-                let v3 = vertices[face[2]];
-                
-                const edge1 = subtract(v2, v1);
-                const edge2 = subtract(v3, v1);
-                const normal = crossProduct(edge1, edge2);
-                const normalLen = Math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2);
-                
-                if (normalLen < 0.0001) {
-                    continue;
-                }
-                
-                let normalNorm = normalize(normal);
-                
-                const center = [
-                    (v1[0] + v2[0] + v3[0]) / 3.0,
-                    (v1[1] + v2[1] + v3[1]) / 3.0,
-                    (v1[2] + v2[2] + v3[2]) / 3.0
-                ];
-                
-                // 改进的法线修正逻辑：确保法线指向外部
-                // 对于旋转体，法线应该从旋转轴指向外部
-                const toCenterX = center[0];
-                const toCenterZ = center[2];
-                const distFromAxisSq = toCenterX**2 + toCenterZ**2;
-                
-                if (distFromAxisSq > 0.0001) {
-                    const distFromAxis = Math.sqrt(distFromAxisSq);
-                    // 从旋转轴到面的中心点的方向（应该指向外部）
-                    const dirToCenterX = toCenterX / distFromAxis;
-                    const dirToCenterZ = toCenterZ / distFromAxis;
-                    
-                    // 计算法线在xz平面的投影
-                    const normalXzLenSq = normalNorm[0]**2 + normalNorm[2]**2;
-                    
-                    if (normalXzLenSq > 0.0001) {
-                        const normalXzLen = Math.sqrt(normalXzLenSq);
-                        const normalXzX = normalNorm[0] / normalXzLen;
-                        const normalXzZ = normalNorm[2] / normalXzLen;
-                        
-                        // 计算点积：如果为负，说明法线指向内部（朝向旋转轴）
-                        const dot = dirToCenterX * normalXzX + dirToCenterZ * normalXzZ;
-                        
-                        if (dot < 0) {
-                            // 法线指向内部，需要反转
-                            normalNorm = [-normalNorm[0], -normalNorm[1], -normalNorm[2]];
-                            // 同时反转顶点顺序以保持一致性
-                            const temp = v2;
-                            v2 = v3;
-                            v3 = temp;
-                        }
-                    } else {
-                        // 法线主要是y方向（水平面），根据面的位置判断
-                        // 对于旋转体的水平面，法线方向应该根据面的实际位置来判断
-                        // 这里保持原样，因为水平面的法线通常已经正确
-                    }
-                } else {
-                    // 面在旋转轴上，法线方向需要特殊处理
-                    // 对于旋转轴上的面，法线应该根据面的实际方向判断
-                    // 这里保持原样
-                }
-                
-                stlContent += `  facet normal ${normalNorm[0].toExponential(6)} ${normalNorm[1].toExponential(6)} ${normalNorm[2].toExponential(6)}\n`;
+                const v1 = vertices[face[0]], v2 = vertices[face[1]], v3 = vertices[face[2]];
+                const n = normalize(crossProduct(subtract(v2, v1), subtract(v3, v1)));
+                stlContent += `  facet normal ${n[0].toExponential(6)} ${n[1].toExponential(6)} ${n[2].toExponential(6)}\n`;
                 stlContent += '    outer loop\n';
                 stlContent += `      vertex ${v1[0].toExponential(6)} ${v1[1].toExponential(6)} ${v1[2].toExponential(6)}\n`;
                 stlContent += `      vertex ${v2[0].toExponential(6)} ${v2[1].toExponential(6)} ${v2[2].toExponential(6)}\n`;
                 stlContent += `      vertex ${v3[0].toExponential(6)} ${v3[1].toExponential(6)} ${v3[2].toExponential(6)}\n`;
-                stlContent += '    endloop\n';
-                stlContent += '  endfacet\n';
+                stlContent += '    endloop\n  endfacet\n';
             }
-            
             stlContent += 'endsolid revolution\n';
             return stlContent;
         }
