@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旋转体STL模型生成器（带预览）</title>
+    <title>旋转体 + 圆环布尔 · STL 生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" 
             onerror="console.error('Three.js CDN加载失败，尝试备用CDN'); 
                      var script = document.createElement('script');
@@ -128,7 +128,7 @@
             }
         })();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/controls/OrbitControls.js" onerror="console.log('OrbitControls CDN加载失败，使用内置版本')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/controls/OrbitControls.js" defer></script>
     <style>
         * {
             margin: 0;
@@ -222,6 +222,112 @@
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
+        }
+        
+        #panelRevolve.is-hidden,
+        #panelRing.is-hidden {
+            display: none !important;
+        }
+        
+        .ring-mask-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+        
+        .ring-mask-btn {
+            min-width: 42px;
+            padding: 8px 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .ring-mask-btn.drop {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .ring-mask-btn:hover {
+            filter: brightness(0.97);
+        }
+
+        /* Boolean tools layout */
+        #booleanTools {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .bt-card {
+            border: 1px solid #e6e6e6;
+            border-radius: 12px;
+            padding: 14px;
+            background: #fff;
+        }
+
+        .bt-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .bt-card-title {
+            font-weight: 900;
+            color: #222;
+        }
+
+        .bt-card .btn-secondary {
+            flex: 0 0 auto;
+            padding: 10px 14px;
+            font-size: 14px;
+            border-radius: 10px;
+        }
+
+        .bt-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 14px;
+        }
+
+        @media (max-width: 720px) {
+            .bt-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .bt-field label {
+            font-weight: 800;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .bt-field input[type="number"],
+        .bt-field select {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 10px;
+        }
+
+        .bt-span-2 {
+            grid-column: 1 / -1;
+        }
+
+        .bt-hint {
+            background: #f5f5f7;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.5;
         }
         
         input[type="number"] {
@@ -503,12 +609,13 @@
     <div class="container">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
             <div>
-                <h1 data-i18n-key="title">🔄 旋转体STL模型生成器（带3D预览）</h1>
-                <p class="subtitle" data-i18n-key="subtitle">输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览</p>
+                <h1 data-i18n-key="title">🔄 旋转体 + 圆环布尔 · STL 生成器</h1>
+                <p class="subtitle" data-i18n-key="subtitle">轮廓生成旋转体；可选用等分圆环布尔（可三维平移工具），并预览与导出</p>
             </div>
-            <div>
-                <label for="langSelect" style="font-size:13px;color:#555;margin-right:6px;" data-i18n-key="langLabel">Language:</label>
-                <select id="langSelect" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:13px;" onchange="setLanguage(this.value)">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button class="btn-secondary" onclick="clearWebCacheAndReload()" data-i18n-key="btnClearCache" style="flex:initial;padding:8px 12px;font-size:13px;border-radius:10px;">清理缓存</button>
+                <label for="langSelect" style="font-size:13px;color:#555;margin-right:0;" data-i18n-key="langLabel">Language:</label>
+                <select id="langSelect" style="padding:6px 10px;border-radius:10px;border:1px solid #ddd;font-size:13px;" onchange="setLanguage(this.value)">
                     <option value="en">English</option>
                     <option value="zh">中文</option>
                 </select>
@@ -562,9 +669,29 @@
                     </div>
                 </div>
                 
+                <div id="panelRing">
+                    <div class="input-group">
+                        <label><input type="checkbox" id="ringBooleanEnabled" onchange="onRingBooleanToggle()"> <span data-i18n-key="ringBoolEnable">结合等分圆环做布尔运算</span></label>
+                        <div class="help-text" style="margin-top:8px;"><span data-i18n-key="ringBoolHelp">勾选后用等分圆环与旋转体做交集/并集/差集；内径 0、等分数 1 可当作实心圆柱。首次需加载 Manifold（约数百 KB）。</span></div>
+                    </div>
+                    <div id="booleanToolsPanel">
+                        <div class="input-group">
+                            <label><strong>布尔工具列表（可多个）</strong></label>
+                            <div class="help-text" style="margin-top:8px;">
+                                每个工具都可单独设置：交/并/差、尺寸、Y中心、X/Y/Z 平移、等分与掩码。<br>
+                                计算顺序：从旋转体开始，按列表顺序依次做布尔。
+                            </div>
+                        </div>
+                        <div id="booleanTools"></div>
+                        <div class="button-group" id="addBooleanToolRow" style="margin-top:10px;">
+                            <button class="btn-secondary" type="button" onclick="addBooleanTool()">+ 添加一个布尔工具</button>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="button-group">
-                    <button class="btn-primary" onclick="generateSTL()" data-i18n-key="btnGenSTL">生成并下载STL</button>
-                    <button class="btn-success" onclick="previewModel()" data-i18n-key="btnPreview">预览模型</button>
+                    <button class="btn-primary" onclick="generateSTL();" data-i18n-key="btnGenSTL">生成并下载STL</button>
+                    <button class="btn-success" onclick="previewModel();" data-i18n-key="btnPreview">预览模型</button>
                     <button class="btn-secondary" onclick="loadExample()" data-i18n-key="btnLoadExample">加载示例</button>
                     <button class="btn-secondary" onclick="clearAll()" data-i18n-key="btnClearAll">清空</button>
                 </div>
@@ -621,8 +748,8 @@
         // 多语言
         const I18N = {
             en: {
-                title: '🔄 Revolved STL Model Generator (with 3D Preview)',
-                subtitle: 'Input profile points to generate a 360° revolved STL model with live preview.',
+                title: '🔄 Revolve + Ring Boolean · STL Generator',
+                subtitle: 'Profile revolve; optional segmented ring boolean with 3D tool placement, preview and export.',
                 langLabel: 'Language:',
                 coordLabel: 'Interactive coordinate system (click to add points)',
                 btnClearPoints: 'Clear all points',
@@ -643,6 +770,7 @@
                 btnPreview: 'Preview model',
                 btnLoadExample: 'Load example',
                 btnClearAll: 'Clear',
+                btnClearCache: 'Clear cache & reload',
                 previewCtrlTitle: 'Preview controls:',
                 previewCtrlLine1: '• Left drag: rotate model',
                 previewCtrlLine2: '• Right drag: pan model',
@@ -654,11 +782,34 @@
                 btnImportProfiles: 'Import',
                 btnClearProfiles: 'Clear library',
                 profileLibTitle: 'Profile library',
-                btnCloseProfileLib: 'Close'
+                btnCloseProfileLib: 'Close',
+                ringBoolEnable: 'Boolean with segmented ring',
+                ringBoolHelp: 'Use a segmented ring (intersect / union / subtract). Inner diameter <strong>0</strong> and <strong>1</strong> division = solid cylinder. Set tool position (X/Y/Z) in preview space. First run downloads Manifold. <strong>Use HTTP, not file://</strong>.',
+                boolOpLabel: 'Boolean mode',
+                boolIntersect: 'Intersect: overlap of revolve and tool',
+                boolUnion: 'Union: revolve ∪ tool',
+                boolSubtract: 'Subtract: revolve − tool volume',
+                boolOpHelp: 'Subtract uses volume in <strong>removed</strong> (red) sectors. Intersect/union use kept (green) sectors.',
+                toolPosTitle: 'Tool position (mm, preview axes)',
+                toolOffsetX: 'X offset (profile horizontal)',
+                toolOffsetY: 'Y offset (profile height)',
+                toolOffsetZ: 'Z offset (around revolution)',
+                toolPosHelp: 'After setting ring center Y, translate the whole tool. Origin = revolution axis through profile origin.',
+                ringDimsTitle: 'Dimensions (diameters, mm)',
+                ringInnerD: 'Bottom inner diameter (0 = solid)',
+                ringOuterD: 'Bottom outer diameter',
+                ringHeight: 'Height',
+                ringDivisions: 'Number of angular divisions',
+                ringDivisionsHelp: 'Split 360° into N sectors; use the toggles below to keep or drop each.',
+                ringMaskLabel: 'Sectors (green = keep, red = remove)',
+                ringMeshResLabel: 'Circumferential subdivisions',
+                ringMeshResHelp: 'If divisions = 1: segments around full ring. If divisions > 1: subdivisions along each kept sector arc (higher = smoother).',
+                ringYCenter: 'Ring center Y (match profile height)',
+                ringYCenterHelp: 'Ring occupies [center − height/2, center + height/2]. Inner diameter <strong>0</strong> and <strong>1</strong> division (full sector kept) = solid cylinder.'
             },
             zh: {
-                title: '🔄 旋转体STL模型生成器（带3D预览）',
-                subtitle: '输入轮廓点坐标，自动生成360度旋转体STL文件并实时预览',
+                title: '🔄 旋转体 + 圆环布尔 · STL 生成器',
+                subtitle: '轮廓生成旋转体；可选用等分圆环布尔（可三维平移工具），并预览与导出',
                 langLabel: '语言：',
                 coordLabel: '交互式坐标系（点击添加点）',
                 btnClearPoints: '清空所有点',
@@ -679,6 +830,7 @@
                 btnPreview: '预览模型',
                 btnLoadExample: '加载示例',
                 btnClearAll: '清空',
+                btnClearCache: '清理缓存',
                 previewCtrlTitle: '预览控制：',
                 previewCtrlLine1: '• 左键拖动：旋转模型',
                 previewCtrlLine2: '• 右键拖动：平移模型',
@@ -690,7 +842,30 @@
                 btnImportProfiles: '导入库',
                 btnClearProfiles: '清空库',
                 profileLibTitle: '截面库',
-                btnCloseProfileLib: '关闭'
+                btnCloseProfileLib: '关闭',
+                ringBoolEnable: '结合等分圆环做布尔运算',
+                ringBoolHelp: '用<strong>等分圆环</strong>（扇区、可选梯形）与旋转体做交集/并集/差集。内径填 <strong>0</strong>、等分数 <strong>1</strong> 且保留整圈时等价实心圆柱。可设置工具在预览坐标系中的 <strong>X/Y/Z</strong> 平移。首次需加载 Manifold。<strong>勿用 file://</strong>。',
+                boolOpLabel: '布尔方式',
+                boolIntersect: '交集：旋转体与工具的公共部分',
+                boolUnion: '并集：旋转体 ∪ 工具',
+                boolSubtract: '差集：从旋转体减去工具体积',
+                boolOpHelp: '差集按「删除扇区」（红色）体积；交集/并集使用保留扇区（绿色）。',
+                toolPosTitle: '布尔工具位置（mm，与预览坐标系一致）',
+                toolOffsetX: 'X 偏移（轮廓水平方向）',
+                toolOffsetY: 'Y 偏移（轮廓高度方向）',
+                toolOffsetZ: 'Z 偏移（绕轴圆周方向）',
+                toolPosHelp: '在「环 Y 向中心」定好轴向位置后，用 X/Y/Z 平移整个布尔工具；原点为旋转轴与轮廓坐标原点。',
+                ringDimsTitle: '尺寸（直径，单位 mm）',
+                ringInnerD: '底面内径（0 为实心）',
+                ringOuterD: '底面外径',
+                ringHeight: '高度',
+                ringDivisions: '圆周等分数',
+                ringDivisionsHelp: '将 360° 均分为 N 份，按下面按钮选择每一份是否保留。',
+                ringMaskLabel: '扇区保留（绿色=保留，红色=去掉）',
+                ringMeshResLabel: '弧向细分',
+                ringMeshResHelp: '等分数为 1：整圈分段数；等分数大于 1：每一份弧上的分段数（越大越圆滑）。',
+                ringYCenter: '环 Y 向中心（与轮廓 y 对齐）',
+                ringYCenterHelp: '环体在轴向上占据 [中心−高度/2, 中心+高度/2]。内径填 <strong>0</strong>、等分数 <strong>1</strong> 且保留整圈时即为实心圆柱。'
             }
         };
 
@@ -701,12 +876,18 @@
                 const val = dict[key];
                 if (val == null) return;
                 // 对包含 HTML 的文本使用 innerHTML
-                if (key === 'pointsHelpTitle' || key === 'pointsHelpLine1') {
+                if (key === 'pointsHelpTitle' || key === 'pointsHelpLine1' || key === 'ringBoolHelp' || key === 'boolOpHelp' || key === 'ringYCenterHelp') {
                     el.innerHTML = val;
                 } else {
                     el.textContent = val;
                 }
             });
+            const boolSel = document.getElementById('boolOp');
+            if (boolSel && dict.boolIntersect) {
+                boolSel.options[0].text = dict.boolIntersect;
+                boolSel.options[1].text = dict.boolUnion || '并集';
+                boolSel.options[2].text = dict.boolSubtract;
+            }
         }
 
         function setLanguage(lang) {
@@ -721,6 +902,9 @@
             const select = document.getElementById('langSelect');
             if (select) select.value = saved;
             applyLanguage(saved);
+            if (!booleanTools.length) booleanTools = [makeDefaultBooleanTool()];
+            renderBooleanTools();
+            onRingBooleanToggle();
         });
         
         function initPreview() {
@@ -1197,8 +1381,602 @@
         // 保存最后生成的STL内容
         let lastSTLContent = null;
         
+        let booleanTools = [];
+        
+        let manifoldWasmPromise = null;
+        
+        function onRingBooleanToggle() {
+            const on = document.getElementById('ringBooleanEnabled').checked;
+            const panel = document.getElementById('booleanToolsPanel');
+            if (panel) panel.style.display = on ? 'block' : 'none';
+            if (on) renderBooleanTools();
+        }
+
+        function makeDefaultBooleanTool() {
+            return {
+                op: 'intersect',
+                inner: 65,
+                outer: 80,
+                height: 30,
+                yCenter: 10,
+                offsetX: 0,
+                offsetY: 0,
+                offsetZ: 0,
+                divisions: 6,
+                meshRes: 16,
+                mask: []
+            };
+        }
+        
+        function ensureMaskLength(tool) {
+            const n = Math.max(1, tool.divisions | 0);
+            if (!Array.isArray(tool.mask)) tool.mask = [];
+            if (tool.mask.length === n) return;
+            const prev = tool.mask.slice();
+            tool.mask = [];
+            for (let i = 0; i < n; i++) tool.mask.push(i < prev.length ? (prev[i] ? 1 : 0) : 1);
+        }
+        
+        function addBooleanTool() {
+            booleanTools.push(makeDefaultBooleanTool());
+            renderBooleanTools();
+        }
+        
+        function removeBooleanTool(idx) {
+            if (booleanTools.length <= 1) {
+                booleanTools = [makeDefaultBooleanTool()];
+            } else {
+                booleanTools.splice(idx, 1);
+            }
+            renderBooleanTools();
+        }
+        
+        function renderToolMaskRow(idx) {
+            const tool = booleanTools[idx];
+            ensureMaskLength(tool);
+            const row = document.getElementById(`bt_mask_${idx}`);
+            if (!row) return;
+            row.innerHTML = '';
+            for (let i = 0; i < tool.mask.length; i++) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'ring-mask-btn' + (tool.mask[i] ? '' : ' drop');
+                b.textContent = String(i);
+                b.title = '扇区 ' + i;
+                b.onclick = () => {
+                    tool.mask[i] = tool.mask[i] ? 0 : 1;
+                    renderToolMaskRow(idx);
+                };
+                row.appendChild(b);
+            }
+        }
+        
+        function renderBooleanTools() {
+            const box = document.getElementById('booleanTools');
+            if (!box) return;
+            if (!booleanTools.length) booleanTools = [makeDefaultBooleanTool()];
+            
+            let html = '';
+            for (let i = 0; i < booleanTools.length; i++) {
+                const t = booleanTools[i];
+                ensureMaskLength(t);
+                html += `
+                    <div class="bt-card">
+                        <div class="bt-card-header">
+                            <div class="bt-card-title">工具 #${i + 1}</div>
+                            <button class="btn-secondary" type="button" onclick="removeBooleanTool(${i})">删除</button>
+                        </div>
+                        <div class="bt-grid">
+                            <div class="bt-field bt-span-2">
+                                <label>布尔方式</label>
+                                <select id="bt_op_${i}">
+                                    <option value="intersect">交集：旋转体与工具的公共部分</option>
+                                    <option value="union">并集：旋转体 ∪ 工具</option>
+                                    <option value="subtract_removed">差集：从旋转体减去工具体积（按删除扇区）</option>
+                                </select>
+                            </div>
+
+                            <div class="bt-field">
+                                <label>内径（0 为实心圆柱）</label>
+                                <input type="number" id="bt_inner_${i}" value="${t.inner}" min="0" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>外径</label>
+                                <input type="number" id="bt_outer_${i}" value="${t.outer}" min="0.1" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>高度</label>
+                                <input type="number" id="bt_h_${i}" value="${t.height}" min="0.1" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>Y 向中心</label>
+                                <input type="number" id="bt_cy_${i}" value="${t.yCenter}" step="0.1">
+                            </div>
+
+                            <div class="bt-field">
+                                <label>X 偏移</label>
+                                <input type="number" id="bt_ox_${i}" value="${t.offsetX}" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>Y 偏移</label>
+                                <input type="number" id="bt_oy_${i}" value="${t.offsetY}" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>Z 偏移</label>
+                                <input type="number" id="bt_oz_${i}" value="${t.offsetZ}" step="0.1">
+                            </div>
+                            <div class="bt-field">
+                                <label>弧向细分</label>
+                                <input type="number" id="bt_res_${i}" value="${t.meshRes}" min="1" max="512">
+                            </div>
+
+                            <div class="bt-field bt-span-2">
+                                <label>圆周等分数</label>
+                                <input type="number" id="bt_div_${i}" value="${t.divisions}" min="1" max="128">
+                            </div>
+                            <div class="bt-span-2 bt-hint">
+                                绿色=保留（用于交集/并集）；红色=删除（用于差集）。<br>
+                                计算按列表顺序逐个叠加。
+                            </div>
+                            <div class="bt-span-2">
+                                <div class="ring-mask-row" id="bt_mask_${i}"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            box.innerHTML = html;
+            
+            for (let i = 0; i < booleanTools.length; i++) {
+                const t = booleanTools[i];
+                const op = document.getElementById(`bt_op_${i}`);
+                if (op) op.value = t.op || 'intersect';
+                const div = document.getElementById(`bt_div_${i}`);
+                if (div) {
+                    div.oninput = () => {
+                        const v = parseInt(div.value, 10);
+                        booleanTools[i].divisions = Number.isFinite(v) ? v : 1;
+                        ensureMaskLength(booleanTools[i]);
+                        renderToolMaskRow(i);
+                    };
+                    div.onchange = div.oninput;
+                }
+                renderToolMaskRow(i);
+            }
+        }
+        
+        function isRingBooleanEnabled() {
+            const el = document.getElementById('ringBooleanEnabled');
+            return el && el.checked;
+        }
+        
+        async function getManifoldWasm() {
+            if (!manifoldWasmPromise) {
+                manifoldWasmPromise = (async () => {
+                    const { default: initManifold } = await import('https://cdn.jsdelivr.net/npm/manifold-3d@2.5.1/manifold.js');
+                    const wasm = await initManifold({
+                        locateFile: (path) => {
+                            const name = typeof path === 'string' ? path.split('/').pop() : '';
+                            return name === 'manifold.wasm'
+                                ? 'https://cdn.jsdelivr.net/npm/manifold-3d@2.5.1/manifold.wasm'
+                                : path;
+                        }
+                    });
+                    wasm.setup();
+                    return wasm;
+                })();
+            }
+            return manifoldWasmPromise;
+        }
+        
+        /**
+         * Manifold 文档：revolve 绕 2D 的 Y 扫一圈后，将扫掠轴作为**结果网格的 Z 轴**。
+         * 本页 getMeshData / Three 预览为 **Y 轴向上**、轮廓第二坐标为高度。
+         * 将 Manifold 的 Z 向轴向转为与页面一致：绕 X 旋转 -90°，(x,y,z)→(x,z,-y)。
+         */
+        function manifoldZAxisMeshToThreeYUp(vertices) {
+            return vertices.map((v) => [v[0], v[2], -v[1]]);
+        }
+        
+        /**
+         * 布尔工具平移量使用与预览/导出一致的坐标系 (X,Y,Z)。
+         * Manifold 顶点经 manifoldZAxisMeshToThreeYUp：(Mx,My,Mz)→(Mx,Mz,-My)，
+         * 故整体平移：预览 (ox,oy,oz) 对应 Manifold.translate(ox, -oz, oy)。
+         */
+        function previewOffsetToManifoldTranslate(ox, oy, oz) {
+            return [ox, -oz, oy];
+        }
+        
+        function manifoldOutputMeshToVF(m) {
+            if (!m || !m.vertProperties || !m.triVerts) {
+                return { vertices: [], faces: [] };
+            }
+            const mp = m.vertProperties;
+            const tv = m.triVerts;
+            const nv = Math.min(
+                typeof m.numVert === 'number' ? m.numVert : mp.length / 3,
+                Math.floor(mp.length / 3)
+            );
+            const ntFromBuf = Math.floor(tv.length / 3);
+            const nt = Math.min(
+                typeof m.numTri === 'number' ? m.numTri : ntFromBuf,
+                ntFromBuf
+            );
+            const vertices = [];
+            for (let i = 0; i < nv; i++) {
+                vertices.push([mp[i * 3], mp[i * 3 + 1], mp[i * 3 + 2]]);
+            }
+            const faces = [];
+            for (let i = 0; i < nt; i++) {
+                const o = i * 3;
+                faces.push([tv[o], tv[o + 1], tv[o + 2]]);
+            }
+            return { vertices, faces };
+        }
+        
+        function profileRadiusYExtents(profilePoints) {
+            let rMin = Infinity;
+            let rMax = -Infinity;
+            let yMin = Infinity;
+            let yMax = -Infinity;
+            for (const [x, y] of profilePoints) {
+                const ax = Math.abs(x);
+                if (ax < rMin) rMin = ax;
+                if (ax > rMax) rMax = ax;
+                if (y < yMin) yMin = y;
+                if (y > yMax) yMax = y;
+            }
+            return { rMin, rMax, yMin, yMax };
+        }
+        
+        function throwEmptyBooleanResult(profilePoints, p) {
+            const { rMin, rMax, yMin, yMax } = profileRadiusYExtents(profilePoints);
+            const hh = p.height / 2;
+            const cy = typeof p.yCenter === 'number' && Number.isFinite(p.yCenter) ? p.yCenter : 0;
+            const ri = p.inner / 2;
+            const ro = p.outer / 2;
+            const ox = p.offsetX || 0;
+            const oy = p.offsetY || 0;
+            const oz = p.offsetZ || 0;
+            throw new Error(
+                '布尔结果为空（0 个三角面）：旋转体与环在空间中无重叠体积。' +
+                ` 轮廓 |x|（半径）约 ${rMin.toFixed(2)}～${rMax.toFixed(2)} mm，Y 约 ${yMin.toFixed(2)}～${yMax.toFixed(2)} mm；` +
+                ` 环半径 ${ri.toFixed(2)}～${ro.toFixed(2)} mm，Y 约 ${(cy - hh).toFixed(2)}～${(cy + hh).toFixed(2)} mm（环 Y 中心=${cy.toFixed(2)}）；` +
+                ` 工具平移 (${ox.toFixed(2)}, ${oy.toFixed(2)}, ${oz.toFixed(2)})。` +
+                ' 请调整内外径、高度、Y 中心或 X/Y/Z 平移，或改用差集并确保删除扇区与实体相交。'
+            );
+        }
+        
+        /**
+         * Manifold.revolve 只使用截面在 x≥0 的部分；画布上常用负 x 表示半径，需用 |x| 作为旋转半径，
+         * 否则正 x 侧为空，实体体积为 0，布尔结果为空。
+         */
+        function profileToManifoldRevolve(wasm, profilePoints, circularSegments) {
+            const { Manifold } = wasm;
+            const poly2d = profilePoints.map(([px, py]) => ({ x: Math.abs(px), y: py }));
+            const n = Math.max(8, Math.min(512, circularSegments | 0));
+            return Manifold.revolve([poly2d], n, 360);
+        }
+        
+        /**
+         * 用 Manifold 原生 revolve+union 生成环工具实体（截面为 r–y 平面梯形，再绕 Y 扫过每段圆心角），
+         * 避免手写三角网格 ofMesh 报 Not manifold。
+         */
+        function buildRingToolManifold(wasm, p, sectorMask) {
+            const { Manifold } = wasm;
+            const rIb = p.inner / 2;
+            const rOb = p.outer / 2;
+            const rIt = rIb;
+            const rOt = rOb;
+            const hh = p.height / 2;
+            const cy = typeof p.yCenter === 'number' && Number.isFinite(p.yCenter) ? p.yCenter : 0;
+            const nDiv = Math.max(1, p.divisions | 0);
+            const angleDeg = 360 / nDiv;
+            const arcSeg = Math.max(4, Math.min(256, p.meshRes | 0));
+            const poly2d = [
+                { x: rIb, y: cy - hh },
+                { x: rOb, y: cy - hh },
+                { x: rOt, y: cy + hh },
+                { x: rIt, y: cy + hh }
+            ];
+            let acc = null;
+            for (let k = 0; k < nDiv; k++) {
+                if (!sectorMask[k]) continue;
+                let mSec = Manifold.revolve([poly2d], arcSeg, angleDeg);
+                // Manifold.revolve 将扫掠轴映为网格的 Z 轴；扇区应在水平面内绕 Z 均布。
+                // 误用 rotate(0, θ, 0)（绕 Y）会把各段摆到不同倾斜平面，看起来像「轴向在变」。
+                if (k !== 0) {
+                    mSec = mSec.rotate(0, 0, k * angleDeg);
+                }
+                if (acc === null) {
+                    acc = mSec;
+                } else {
+                    const merged = Manifold.union(acc, mSec);
+                    try {
+                        if (acc.delete) acc.delete();
+                    } catch (e) {}
+                    try {
+                        if (mSec.delete) mSec.delete();
+                    } catch (e) {}
+                    acc = merged;
+                }
+            }
+            if (acc == null) {
+                throw new Error('环工具：当前掩码下没有有效扇区');
+            }
+            return acc;
+        }
+        
+        function collectBooleanToolsFromUI() {
+            const list = [];
+            for (let i = 0; i < booleanTools.length; i++) {
+                const op = (document.getElementById(`bt_op_${i}`) && document.getElementById(`bt_op_${i}`).value) || 'intersect';
+                const inner = parseFloat(document.getElementById(`bt_inner_${i}`).value);
+                const outer = parseFloat(document.getElementById(`bt_outer_${i}`).value);
+                const height = parseFloat(document.getElementById(`bt_h_${i}`).value);
+                const yCenter = parseFloat(document.getElementById(`bt_cy_${i}`).value);
+                const offsetX = parseFloat(document.getElementById(`bt_ox_${i}`).value);
+                const offsetY = parseFloat(document.getElementById(`bt_oy_${i}`).value);
+                const offsetZ = parseFloat(document.getElementById(`bt_oz_${i}`).value);
+                const divisions = Math.max(1, parseInt(document.getElementById(`bt_div_${i}`).value, 10) || 1);
+                const meshRes = Math.max(1, parseInt(document.getElementById(`bt_res_${i}`).value, 10) || 16);
+                const mask = (booleanTools[i] && Array.isArray(booleanTools[i].mask)) ? booleanTools[i].mask.slice() : [];
+                
+                if (!Number.isFinite(inner) || !Number.isFinite(outer) || !Number.isFinite(height) || !Number.isFinite(yCenter)) {
+                    throw new Error(`工具 #${i + 1}：尺寸请输入有效数字`);
+                }
+                if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY) || !Number.isFinite(offsetZ)) {
+                    throw new Error(`工具 #${i + 1}：平移请输入有效数字`);
+                }
+                if (inner < 0 || inner >= outer) {
+                    throw new Error(`工具 #${i + 1}：内径须在 [0, 外径)`);
+                }
+                if (height <= 0) {
+                    throw new Error(`工具 #${i + 1}：高度须为正数`);
+                }
+                const tool = {
+                    op,
+                    inner,
+                    outer,
+                    height,
+                    yCenter,
+                    offsetX,
+                    offsetY,
+                    offsetZ,
+                    divisions,
+                    meshRes,
+                    mask
+                };
+                ensureMaskLength(tool);
+                list.push(tool);
+            }
+            return list;
+        }
+        
+        async function buildRevolveRingBooleanModel(profilePoints, segments) {
+            const wasm = await getManifoldWasm();
+            const tools = collectBooleanToolsFromUI();
+            if (!tools.length) throw new Error('请至少添加一个布尔工具');
+            
+            let mRev = null;
+            let mCur = null;
+            let mOut = null;
+            let outVF = null;
+            try {
+                try {
+                    mRev = profileToManifoldRevolve(wasm, profilePoints, segments);
+                    mCur = mRev;
+                } catch (eRev) {
+                    const er = (eRev && eRev.message) ? String(eRev.message) : String(eRev);
+                    throw new Error(
+                        '旋转体(Manifold.revolve)失败：' + er +
+                        '。请保证轮廓为简单闭合多边形、尽量放在 x≥0 一侧，或降低自交/分段。'
+                    );
+                }
+                
+                for (let i = 0; i < tools.length; i++) {
+                    const t = tools[i];
+                    let mask = t.mask.slice();
+                    if (t.op === 'subtract_removed') {
+                        mask = mask.map((k) => (k ? 0 : 1));
+                        if (!mask.some(Boolean)) throw new Error(`工具 #${i + 1}：差集模式下至少删除一扇区（红色）`);
+                    } else {
+                        if (!mask.some(Boolean)) throw new Error(`工具 #${i + 1}：交集/并集模式下至少保留一扇区（绿色）`);
+                    }
+                    
+                    let mTool = null;
+                    try {
+                        mTool = buildRingToolManifold(wasm, t, mask);
+                        const [tx, ty, tz] = previewOffsetToManifoldTranslate(t.offsetX, t.offsetY, t.offsetZ);
+                        if (tx !== 0 || ty !== 0 || tz !== 0) {
+                            mTool = mTool.translate(tx, ty, tz);
+                        }
+                    } catch (eTool) {
+                        const er = (eTool && eTool.message) ? String(eTool.message) : String(eTool);
+                        throw new Error(`工具 #${i + 1}：环工具(Manifold 构造)失败：${er}`);
+                    }
+                    
+                    let next = null;
+                    try {
+                        if (t.op === 'intersect') next = mCur.intersect(mTool);
+                        else if (t.op === 'union') next = mCur.add(mTool);
+                        else next = mCur.subtract(mTool);
+                    } finally {
+                        try { if (mTool && mTool.delete) mTool.delete(); } catch (e) {}
+                    }
+                    
+                    if (mCur !== mRev) {
+                        try { if (mCur && mCur.delete) mCur.delete(); } catch (e) {}
+                    }
+                    mCur = next;
+                }
+                
+                mOut = mCur;
+                const raw = mOut.getMesh();
+                outVF = manifoldOutputMeshToVF(raw);
+                if (!outVF.faces.length) {
+                    throwEmptyBooleanResult(profilePoints, tools[tools.length - 1]);
+                }
+                outVF.vertices = manifoldZAxisMeshToThreeYUp(outVF.vertices);
+            } catch (err) {
+                const m = err && err.message != null ? String(err.message) : String(err);
+                if (m.indexOf('旋转体') === 0 || m.indexOf('工具 #') === 0 || m.indexOf('布尔结果为空') === 0) {
+                    throw err;
+                }
+                throw new Error('布尔运算失败：' + m);
+            } finally {
+                try { if (mRev && mRev.delete) mRev.delete(); } catch (e) {}
+                if (mCur && mCur !== mRev && mCur !== mOut) {
+                    try { if (mCur.delete) mCur.delete(); } catch (e) {}
+                }
+                // mOut 已经是 mCur；上面已处理
+            }
+            
+            return {
+                vertices: outVF.vertices,
+                faces: outVF.faces,
+                toolCount: tools.length,
+                tools
+            };
+        }
+        
+        function addQuadRing(faces, a, b, c, d, flip) {
+            if (flip) {
+                faces.push([a, c, b], [b, c, d]);
+            } else {
+                faces.push([a, b, c], [b, d, c]);
+            }
+        }
+        
+        function getRingMeshDataCylinderSimple(rInner, rOuter, h, segments) {
+            const vertices = [];
+            const faces = [];
+            const outerTop = [], outerBottom = [], innerTop = [], innerBottom = [];
+            for (let i = 0; i <= segments; i++) {
+                const angle = 2 * Math.PI * i / segments;
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                outerTop.push([rOuter * cosA, rOuter * sinA, h]);
+                outerBottom.push([rOuter * cosA, rOuter * sinA, -h]);
+                innerTop.push([rInner * cosA, rInner * sinA, h]);
+                innerBottom.push([rInner * cosA, rInner * sinA, -h]);
+            }
+            vertices.push(...outerTop, ...outerBottom, ...innerTop, ...innerBottom);
+            const npc = segments + 1;
+            let vo = 0;
+            for (let i = 0; i < segments; i++) {
+                const ni = (i + 1) % npc;
+                const ov1 = vo + i, ov2 = vo + ni;
+                const iv1 = vo + 2 * npc + i, iv2 = vo + 2 * npc + ni;
+                faces.push([ov1, ov2, iv1], [ov2, iv2, iv1]);
+            }
+            const bo = npc, bio = 3 * npc;
+            for (let i = 0; i < segments; i++) {
+                const ni = (i + 1) % npc;
+                faces.push([bo + i, bio + i, bo + ni], [bo + ni, bio + i, bio + ni]);
+            }
+            for (let i = 0; i < segments; i++) {
+                const ni = (i + 1) % npc;
+                faces.push([vo + i, vo + npc + i, vo + ni], [vo + ni, vo + npc + i, vo + npc + ni]);
+            }
+            for (let i = 0; i < segments; i++) {
+                const ni = (i + 1) % npc;
+                const t1 = vo + 2 * npc + i, t2 = vo + 2 * npc + ni;
+                const b1 = vo + 3 * npc + i, b2 = vo + 3 * npc + ni;
+                faces.push([t1, t2, b1], [t2, b2, b1]);
+            }
+            return { vertices, faces };
+        }
+        
+        function getRingMeshData(innerD, outerD, height, meshRes, divisions, mask, innerTopD, outerTopD) {
+            const rIb = innerD / 2;
+            const rOb = outerD / 2;
+            const rIt = innerTopD / 2;
+            const rOt = outerTopD / 2;
+            const hh = height / 2;
+            const nDiv = Math.max(1, divisions | 0);
+            const m = mask.map(x => !!x);
+            if (m.length !== nDiv) throw new Error('保留掩码长度与等分数不一致');
+            if (!m.some(Boolean)) throw new Error('至少保留一个扇区');
+            
+            const cylindrical = Math.abs(rIb - rIt) < 1e-9 && Math.abs(rOb - rOt) < 1e-9;
+            const spd = Math.max(1, meshRes | 0);
+            
+            if (nDiv === 1 && m[0] && cylindrical) {
+                return getRingMeshDataCylinderSimple(rIb, rOb, hh, spd);
+            }
+            
+            const vertices = [];
+            const faces = [];
+            
+            function ptOuterTop(th) { return [rOt * Math.cos(th), rOt * Math.sin(th), hh]; }
+            function ptOuterBot(th) { return [rOb * Math.cos(th), rOb * Math.sin(th), -hh]; }
+            function ptInnerTop(th) { return [rIt * Math.cos(th), rIt * Math.sin(th), hh]; }
+            function ptInnerBot(th) { return [rIb * Math.cos(th), rIb * Math.sin(th), -hh]; }
+            
+            function appendSector(thA, thB, needWallLo, needWallHi) {
+                const steps = spd;
+                const idx0 = vertices.length;
+                for (let s = 0; s <= steps; s++) {
+                    const t = s / steps;
+                    const th = thA + t * (thB - thA);
+                    vertices.push(ptOuterTop(th), ptOuterBot(th), ptInnerTop(th), ptInnerBot(th));
+                }
+                for (let s = 0; s < steps; s++) {
+                    const b = idx0 + s * 4;
+                    addQuadRing(faces, b + 0, b + 4, b + 5, b + 1, false);
+                    faces.push([b + 2, b + 6, b + 3], [b + 6, b + 7, b + 3]);
+                    addQuadRing(faces, b + 0, b + 4, b + 6, b + 2, false);
+                    addQuadRing(faces, b + 1, b + 3, b + 7, b + 5, true);
+                }
+                function radialCapWallAt(th, outwardDecTheta) {
+                    const ot = ptOuterTop(th), ob = ptOuterBot(th);
+                    const it = ptInnerTop(th), ib = ptInnerBot(th);
+                    const base = vertices.length;
+                    vertices.push(ot, it, ib, ob);
+                    if (outwardDecTheta) {
+                        addQuadRing(faces, base, base + 1, base + 2, base + 3, false);
+                    } else {
+                        addQuadRing(faces, base, base + 3, base + 2, base + 1, true);
+                    }
+                }
+                if (needWallLo) radialCapWallAt(thA, true);
+                if (needWallHi) radialCapWallAt(thB, false);
+            }
+            
+            const twoPi = 2 * Math.PI;
+            for (let k = 0; k < nDiv; k++) {
+                if (!m[k]) continue;
+                const thA = twoPi * k / nDiv;
+                const thB = twoPi * (k + 1) / nDiv;
+                const kLo = (k - 1 + nDiv) % nDiv;
+                const kHi = (k + 1) % nDiv;
+                appendSector(thA, thB, !m[kLo], !m[kHi]);
+            }
+            return { vertices, faces };
+        }
+        
+        function writeStlAscii(solidName, vertices, faces) {
+            let stlContent = 'solid ' + solidName + '\n';
+            for (let fi = 0; fi < faces.length; fi++) {
+                const face = faces[fi];
+                const v1 = vertices[face[0]], v2 = vertices[face[1]], v3 = vertices[face[2]];
+                const n = normalize(crossProduct(subtract(v2, v1), subtract(v3, v1)));
+                stlContent += `  facet normal ${n[0].toExponential(6)} ${n[1].toExponential(6)} ${n[2].toExponential(6)}\n`;
+                stlContent += '    outer loop\n';
+                stlContent += `      vertex ${v1[0].toExponential(6)} ${v1[1].toExponential(6)} ${v1[2].toExponential(6)}\n`;
+                stlContent += `      vertex ${v2[0].toExponential(6)} ${v2[1].toExponential(6)} ${v2[2].toExponential(6)}\n`;
+                stlContent += `      vertex ${v3[0].toExponential(6)} ${v3[1].toExponential(6)} ${v3[2].toExponential(6)}\n`;
+                stlContent += '    endloop\n  endfacet\n';
+            }
+            stlContent += 'endsolid ' + solidName + '\n';
+            return stlContent;
+        }
+        
+        // collectRingParams 已被「多工具列表」取代
+        
         // 生成STL文件
-        function generateSTL() {
+        async function generateSTL() {
             const pointsText = document.getElementById('points').value;
             const segments = parseInt(document.getElementById('segments').value) || 128;
             const resultDiv = document.getElementById('result');
@@ -1212,14 +1990,39 @@
             resultDiv.classList.add('show');
             
             try {
-                // 解析点
                 const profilePoints = parsePoints(pointsText);
                 
                 if (profilePoints.length < 3) {
                     throw new Error('至少需要3个点才能形成轮廓！');
                 }
                 
-                // 生成STL内容
+                if (isRingBooleanEnabled()) {
+                    resultInfo.innerHTML = '<strong>正在加载 Manifold 内核并计算布尔…</strong><br><small>首次使用需下载 WASM（约数百 KB）</small>';
+                    const data = await buildRevolveRingBooleanModel(profilePoints, segments);
+                    const stlContent = writeStlAscii('revolve_boolean', data.vertices, data.faces);
+                    lastSTLContent = stlContent;
+                    const blob = new Blob([stlContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'revolve_boolean.stl';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resultInfo.innerHTML = `
+                        <strong>✓ STL 已生成（旋转体 + 多工具布尔）</strong><br>
+                        工具数量: ${data.toolCount}<br>
+                        顶点数: ${data.vertices.length}<br>
+                        三角形面数: ${data.faces.length}<br>
+                        文件已下载为 <code>revolve_boolean.stl</code><br>
+                        <small>可点击「预览模型」查看</small>
+                    `;
+                    successMsg.style.display = 'block';
+                    successMsg.textContent = '文件已成功下载到您的下载文件夹！';
+                    return;
+                }
+                
                 const stlContent = generateSTLContent(profilePoints, segments);
                 lastSTLContent = stlContent;
                 
@@ -1227,7 +2030,6 @@
                 const numProfilePoints = profilePoints.length;
                 const numRotationSegments = segments;
                 
-                // 下载文件
                 const blob = new Blob([stlContent], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1238,7 +2040,6 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                // 显示成功信息
                 resultInfo.innerHTML = `
                     <strong>✓ STL文件生成成功！</strong><br>
                     轮廓点数: ${numProfilePoints}<br>
@@ -1507,10 +2308,8 @@
         }
         
         // 预览模型
-        function previewModel() {
+        async function previewModel() {
             console.log('previewModel被调用');
-            const pointsText = document.getElementById('points').value;
-            const segments = parseInt(document.getElementById('segments').value) || 128;
             const errorMsg = document.getElementById('errorMsg');
             const successMsg = document.getElementById('successMsg');
             
@@ -1518,23 +2317,26 @@
             successMsg.style.display = 'none';
             
             try {
-                // 检查场景是否初始化
                 if (!scene || !camera || !renderer) {
                     throw new Error('3D预览场景未初始化，请刷新页面');
                 }
                 
-                // 每次都重新生成STL内容，确保预览的是最新的模型
-                console.log('重新生成STL内容用于预览');
+                const pointsText = document.getElementById('points').value;
+                const segments = parseInt(document.getElementById('segments').value) || 128;
                 const profilePoints = parsePoints(pointsText);
                 
                 if (profilePoints.length < 3) {
                     throw new Error('至少需要3个点才能形成轮廓！');
                 }
                 
-                // 生成STL内容
-                const stlContent = generateSTLContent(profilePoints, segments);
-                
-                // 调用预览函数
+                let stlContent;
+                if (isRingBooleanEnabled()) {
+                    const data = await buildRevolveRingBooleanModel(profilePoints, segments);
+                    stlContent = writeStlAscii('revolve_boolean', data.vertices, data.faces);
+                } else {
+                    stlContent = generateSTLContent(profilePoints, segments);
+                }
+                lastSTLContent = stlContent;
                 console.log('准备加载预览，STL内容长度:', stlContent ? stlContent.length : 0);
                 loadSTLToPreview(stlContent);
                 
@@ -1633,12 +2435,42 @@
         function clearAll() {
             document.getElementById('points').value = '';
             document.getElementById('segments').value = '128';
+            const rbe = document.getElementById('ringBooleanEnabled');
+            if (rbe) rbe.checked = false;
+            booleanTools = [makeDefaultBooleanTool()];
+            renderBooleanTools();
+            onRingBooleanToggle();
             document.getElementById('result').classList.remove('show');
             if (currentMesh) {
                 scene.remove(currentMesh);
                 if (currentMesh.geometry) currentMesh.geometry.dispose();
                 if (currentMesh.material) currentMesh.material.dispose();
                 currentMesh = null;
+            }
+        }
+
+        async function clearWebCacheAndReload() {
+            try {
+                // 清除本页存储
+                try { localStorage.clear(); } catch (e) {}
+                try { sessionStorage.clear(); } catch (e) {}
+
+                // 清除 Cache Storage（如有）
+                if (window.caches && caches.keys) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map((k) => caches.delete(k)));
+                }
+
+                // 注销 Service Worker（如有）
+                if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((r) => r.unregister()));
+                }
+            } finally {
+                // 强制刷新（带时间戳，避免浏览器继续用旧缓存）
+                const u = new URL(window.location.href);
+                u.searchParams.set('_ts', String(Date.now()));
+                window.location.replace(u.toString());
             }
         }
         
