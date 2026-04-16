@@ -1,15 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>旋转体 + 圆环布尔 · STL 生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" 
-            onerror="console.error('Three.js CDN加载失败，尝试备用CDN'); 
+            onerror="console.error('Three.js CDN load failed, trying fallback'); 
                      var script = document.createElement('script');
                      script.src = 'https://unpkg.com/three@0.150.0/build/three.min.js';
                      script.onerror = function() { 
-                         alert('Three.js库加载失败，请检查网络连接或使用离线版本'); 
+                         try {
+                           var lang = localStorage.getItem('revolve_lang') || 'en';
+                           alert(lang === 'zh' ? 'Three.js 加载失败，请检查网络或使用离线版本。' : 'Failed to load Three.js. Check your network or use an offline build.');
+                         } catch (e) {
+                           alert('Failed to load Three.js.');
+                         }
                      };
                      document.head.appendChild(script);"></script>
     <script>
@@ -676,15 +681,21 @@
                     </div>
                     <div id="booleanToolsPanel">
                         <div class="input-group">
-                            <label><strong>布尔工具列表（可多个）</strong></label>
-                            <div class="help-text" style="margin-top:8px;">
+                            <label><strong data-i18n-key="boolToolsListTitle">布尔工具列表（可多个）</strong></label>
+                            <div class="help-text" style="margin-top:8px;" data-i18n-html="boolToolsHelpBlock">
                                 每个工具都可单独设置：交/并/差、尺寸、Y中心、X/Y/Z 平移、等分与掩码。<br>
                                 计算顺序：从旋转体开始，按列表顺序依次做布尔。
                             </div>
                         </div>
                         <div id="booleanTools"></div>
                         <div class="button-group" id="addBooleanToolRow" style="margin-top:10px;">
-                            <button class="btn-secondary" type="button" onclick="addBooleanTool()">+ 添加一个布尔工具</button>
+                            <button class="btn-secondary" type="button" onclick="addBooleanTool()" data-i18n-key="btnAddBooleanTool">+ 添加一个布尔工具</button>
+                        </div>
+                        <div class="button-group" id="booleanToolLibraryRow" style="margin-top:10px;">
+                            <button class="btn-secondary" type="button" onclick="saveBooleanToolSet()" data-i18n-key="btnSaveBoolToolSet">保存布尔工具</button>
+                            <button class="btn-secondary" type="button" onclick="openBooleanToolManager()" data-i18n-key="btnOpenBoolToolLib">布尔工具库</button>
+                            <button class="btn-secondary" type="button" onclick="exportBooleanToolSets()" data-i18n-key="btnExportBoolToolLib">导出库</button>
+                            <button class="btn-secondary" type="button" onclick="importBooleanToolSets()" data-i18n-key="btnImportBoolToolLib">导入库</button>
                         </div>
                     </div>
                 </div>
@@ -711,7 +722,7 @@
             
             <div class="preview-section">
                 <div class="preview-container">
-                    <div id="loading" class="loading">正在生成预览...</div>
+                    <div id="loading" class="loading" data-i18n-key="loadingPreview">正在生成预览...</div>
                     <canvas id="previewCanvas"></canvas>
                 </div>
                 <div class="preview-controls">
@@ -733,12 +744,29 @@
                 <button class="btn-secondary" onclick="closeProfileManager()" data-i18n-key="btnCloseProfileLib">关闭</button>
             </div>
             <div class="modal-actions">
-                <input id="profileSearch" placeholder="搜索名称…" oninput="renderProfileList()" />
+                <input id="profileSearch" data-i18n-placeholder="profileSearchPlaceholder" placeholder="搜索名称…" oninput="renderProfileList()" />
                 <button class="btn-secondary" onclick="exportProfiles()" data-i18n-key="btnExportProfiles">导出库</button>
                 <button class="btn-secondary" onclick="importProfiles()" data-i18n-key="btnImportProfiles">导入库</button>
                 <button class="btn-secondary" onclick="clearProfiles()" data-i18n-key="btnClearProfiles">清空库</button>
             </div>
             <div id="profileList"></div>
+        </div>
+    </div>
+
+    <!-- Saved boolean tool sets / boolean tool library -->
+    <div id="boolToolModal" class="modal" onclick="onBoolToolModalBackdrop(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-topbar">
+                <strong data-i18n-key="boolToolLibTitle">布尔工具库</strong>
+                <button class="btn-secondary" onclick="closeBooleanToolManager()" data-i18n-key="btnCloseBoolToolLib">关闭</button>
+            </div>
+            <div class="modal-actions">
+                <input id="boolToolSearch" data-i18n-placeholder="boolToolSearchPlaceholder" placeholder="搜索名称…" oninput="renderBooleanToolList()" />
+                <button class="btn-secondary" onclick="exportBooleanToolSets()" data-i18n-key="btnExportBoolToolLib">导出库</button>
+                <button class="btn-secondary" onclick="importBooleanToolSets()" data-i18n-key="btnImportBoolToolLib">导入库</button>
+                <button class="btn-secondary" onclick="clearBooleanToolSets()" data-i18n-key="btnClearBoolToolLib">清空库</button>
+            </div>
+            <div id="boolToolList"></div>
         </div>
     </div>
 
@@ -756,7 +784,7 @@
                 btnDeleteLast: 'Delete last point',
                 btnSyncFromText: 'Sync from text',
                 coordOpsTitle: 'Instructions:',
-                coordOpsText: 'Click to add point | Right-click to delete last point | Double-click to clear all points',
+                coordOpsText: 'Click to add point | Wheel to zoom | Shift+drag (or middle-drag) to pan | Right-click to delete last point | Double-click to clear all points',
                 pointsLabel: 'Profile points (one point per line, format: x, y or x y)',
                 pointsHelpTitle: '<strong>Instructions:</strong>',
                 pointsHelpLine1: '• Each line is one point, format <code>x, y</code> or <code>x y</code>',
@@ -805,7 +833,115 @@
                 ringMeshResLabel: 'Circumferential subdivisions',
                 ringMeshResHelp: 'If divisions = 1: segments around full ring. If divisions > 1: subdivisions along each kept sector arc (higher = smoother).',
                 ringYCenter: 'Ring center Y (match profile height)',
-                ringYCenterHelp: 'Ring occupies [center − height/2, center + height/2]. Inner diameter <strong>0</strong> and <strong>1</strong> division (full sector kept) = solid cylinder.'
+                ringYCenterHelp: 'Ring occupies [center − height/2, center + height/2]. Inner diameter <strong>0</strong> and <strong>1</strong> division (full sector kept) = solid cylinder.',
+                alertModelGenFailTitle: 'Model generation failed',
+                alertPreviewLoadFailTitle: 'Preview load failed',
+                alertPreviewLoadHint: 'The STL may still be valid; check the browser console (F12) for details.',
+                alertInitFailTitle: 'Initialization failed',
+                alertInitFailHint: 'Please refresh the page and try again.',
+                alertThreeLoadFail: 'Failed to load Three.js. Check your network or use an offline build.',
+                alertThreeNotLoaded: 'Three.js is not loaded. Please refresh the page.',
+                alertPreviewNotReady: 'The 3D preview is not ready. Please refresh the page.',
+                boolToolsListTitle: 'Boolean tools (multiple)',
+                boolToolsHelpBlock: 'Each tool can set mode, dimensions, Y center, X/Y/Z offset, divisions and mask.<br>Order: start from the revolve body, apply tools in list order.',
+                btnAddBooleanTool: '+ Add boolean tool',
+                btnSaveBoolToolSet: 'Save boolean tools',
+                btnOpenBoolToolLib: 'Tool library',
+                btnExportBoolToolLib: 'Export',
+                btnImportBoolToolLib: 'Import',
+                btnClearBoolToolLib: 'Clear library',
+                boolToolLibTitle: 'Boolean tool library',
+                btnCloseBoolToolLib: 'Close',
+                boolToolSearchPlaceholder: 'Search by name…',
+                btLibNoMatch: 'No matching tool sets.',
+                promptBoolToolSetName: 'Name this tool set',
+                msgSavedBoolToolLib: 'Saved to boolean tool library.',
+                msgLoadedBoolToolSet: 'Loaded: {0}',
+                errNoBoolToolsToSave: 'No boolean tools to save.',
+                errImportNoBoolToolSets: 'No “toolSets” data in file.',
+                loadingPreview: 'Generating preview…',
+                profileSearchPlaceholder: 'Search by name…',
+                btToolTitle: 'Tool #{0}',
+                btDelete: 'Remove',
+                boolSubtractRemoved: 'Subtract: revolve − tool (by removed/red sectors)',
+                btInnerLabel: 'Inner diameter (0 = solid cylinder)',
+                btOuterLabel: 'Outer diameter',
+                btHeightLabel: 'Height',
+                btYCenterLabel: 'Y center',
+                btOffsetXLabel: 'X offset',
+                btOffsetYLabel: 'Y offset',
+                btOffsetZLabel: 'Z offset',
+                btMeshResLabel: 'Arc subdivisions',
+                btDivisionsLabel: 'Angular divisions',
+                btHintMask: 'Green = keep (intersect/union); red = remove (subtract).<br>Booleans are applied in list order.',
+                sectorTooltip: 'Sector {0}',
+                errThreeNotLoadedBody: 'Three.js is not loaded. Check your network connection or refresh the page.',
+                errStlNoFacets: 'No valid facets found in STL.',
+                errStlEmpty: 'STL content is empty.',
+                errGeomCreateFail: 'Failed to create geometry.',
+                errGeomNoPosition: 'Geometry has no position attribute.',
+                errGeomNoVerts: 'Geometry has no vertices.',
+                previewLoadErrorPrefix: 'Preview load failed: ',
+                previewLoadErrorSuffix: '. STL may still be valid; open the browser console (F12) for details.',
+                errEmptyBoolean: 'Boolean result is empty (0 triangles): no overlap between revolve and ring. Profile |x| ~ {0}–{1} mm, Y ~ {2}–{3} mm; ring radius {4}–{5} mm, Y ~ {6}–{7} mm (ring Y center={8}); tool offset ({9}, {10}, {11}). Adjust inner/outer, height, Y center or X/Y/Z, or use subtract with removed sectors intersecting the solid.',
+                errRingNoSectors: 'Ring tool: no valid sectors under current mask.',
+                errToolInvalidDims: 'Tool #{0}: enter valid numbers for dimensions.',
+                errToolInvalidTranslate: 'Tool #{0}: enter valid numbers for translation.',
+                errToolInnerRange: 'Tool #{0}: inner diameter must be in [0, outer).',
+                errToolHeightPositive: 'Tool #{0}: height must be positive.',
+                errNeedBooleanTool: 'Add at least one boolean tool.',
+                errNeedThreePoints: 'At least 3 points are required to form a profile.',
+                errRevolveFailed: 'Revolve (Manifold.revolve) failed: {0}. Use a simple closed polygon profile, preferably x≥0, or reduce self-intersections.',
+                errToolSubtractNeedRed: 'Tool #{0}: in subtract mode at least one sector must be removed (red).',
+                errToolIntersectNeedGreen: 'Tool #{0}: in intersect/union mode at least one sector must be kept (green).',
+                errRingToolBuild: 'Tool #{0}: ring tool (Manifold) failed: {1}',
+                errBooleanOpFailed: 'Boolean operation failed: ',
+                errMaskLenMismatch: 'Mask length does not match division count.',
+                errKeepOneSector: 'Keep at least one sector.',
+                loadingManifoldLine1: 'Loading Manifold and computing boolean…',
+                loadingManifoldLine2: 'First run downloads WASM (~hundreds of KB)',
+                resultBooleanOkTitle: '✓ STL generated (revolve + multi-tool boolean)',
+                resultBooleanToolCount: 'Tools:',
+                resultBooleanVerts: 'Vertices:',
+                resultBooleanFaces: 'Triangles:',
+                resultBooleanFile: 'Downloaded as',
+                resultBooleanHint: 'Use “Preview model” to view.',
+                resultSimpleOkTitle: '✓ STL generated',
+                resultSimplePoints: 'Profile points:',
+                resultSimpleSegments: 'Revolution segments:',
+                resultSimpleVerts: 'Vertices:',
+                resultSimpleFaces: 'Faces:',
+                resultSimpleFile: 'Downloaded as',
+                resultSimpleHint: 'Click “Preview model” for 3D preview.',
+                msgDownloaded: 'File saved to your Downloads folder.',
+                errLabel: 'Error: ',
+                genFailBanner: '× Generation failed',
+                previewFailBanner: '× Preview / model generation failed',
+                errNoPointsToSave: 'No coordinates to save.',
+                promptProfileName: 'Name this profile',
+                msgSavedToLib: 'Saved to profile library.',
+                profileNoMatch: 'No matching profiles.',
+                profileUnnamed: '(unnamed)',
+                profileMetaSegments: 'segments',
+                profileMetaSaved: 'saved',
+                profileMetaUpdated: 'updated',
+                btnProfileLoad: 'Load',
+                btnProfileRename: 'Rename',
+                btnProfileOverwrite: 'Overwrite with current',
+                btnProfileExportOne: 'Export this',
+                btnProfileDelete: 'Delete',
+                errProfileNotFound: 'Record not found.',
+                msgLoadedProfile: 'Loaded: {0}',
+                promptNewName: 'New name',
+                errNoPointsOverwrite: 'No coordinates to overwrite with.',
+                confirmOverwrite: 'Overwrite “{0}” with current input?',
+                confirmDelete: 'Delete “{0}”?',
+                confirmClearLib: 'Clear the entire profile library? This cannot be undone.',
+                errImportNoProfiles: 'No “profiles” data in file.',
+                msgImportOk: 'Imported {0} item(s).',
+                errImportFailed: 'Import failed: ',
+                previewErrorPrefix: 'Preview error: ',
+                unnamedProfilePrefix: 'Unnamed-'
             },
             zh: {
                 title: '🔄 旋转体 + 圆环布尔 · STL 生成器',
@@ -816,7 +952,7 @@
                 btnDeleteLast: '删除最后一点',
                 btnSyncFromText: '从文本框同步',
                 coordOpsTitle: '操作说明：',
-                coordOpsText: '点击坐标系添加点 | 右键点击删除最近的点 | 双击清空所有点',
+                coordOpsText: '点击坐标系添加点 | 滚轮缩放 | Shift+拖拽（或中键拖拽）平移 | 右键点击删除最近的点 | 双击清空所有点',
                 pointsLabel: '轮廓点坐标（每行一个点，格式：x, y 或 x y）',
                 pointsHelpTitle: '<strong>使用说明：</strong>',
                 pointsHelpLine1: '• 每行输入一个点的坐标，格式为 <code>x, y</code> 或 <code>x y</code>',
@@ -865,22 +1001,185 @@
                 ringMeshResLabel: '弧向细分',
                 ringMeshResHelp: '等分数为 1：整圈分段数；等分数大于 1：每一份弧上的分段数（越大越圆滑）。',
                 ringYCenter: '环 Y 向中心（与轮廓 y 对齐）',
-                ringYCenterHelp: '环体在轴向上占据 [中心−高度/2, 中心+高度/2]。内径填 <strong>0</strong>、等分数 <strong>1</strong> 且保留整圈时即为实心圆柱。'
+                ringYCenterHelp: '环体在轴向上占据 [中心−高度/2, 中心+高度/2]。内径填 <strong>0</strong>、等分数 <strong>1</strong> 且保留整圈时即为实心圆柱。',
+                alertModelGenFailTitle: '模型生成失败',
+                alertPreviewLoadFailTitle: '预览加载失败',
+                alertPreviewLoadHint: 'STL 可能仍有效；请打开浏览器控制台（F12）查看详情。',
+                alertInitFailTitle: '初始化失败',
+                alertInitFailHint: '请刷新页面后重试。',
+                alertThreeLoadFail: 'Three.js 加载失败，请检查网络或使用离线版本。',
+                alertThreeNotLoaded: 'Three.js 未加载，请刷新页面重试。',
+                alertPreviewNotReady: '3D 预览场景未初始化，请刷新页面重试。',
+                boolToolsListTitle: '布尔工具列表（可多个）',
+                boolToolsHelpBlock: '每个工具都可单独设置：交/并/差、尺寸、Y 中心、X/Y/Z 平移、等分与掩码。<br>计算顺序：从旋转体开始，按列表顺序依次做布尔。',
+                btnAddBooleanTool: '+ 添加一个布尔工具',
+                btnSaveBoolToolSet: '保存布尔工具',
+                btnOpenBoolToolLib: '布尔工具库',
+                btnExportBoolToolLib: '导出库',
+                btnImportBoolToolLib: '导入库',
+                btnClearBoolToolLib: '清空库',
+                boolToolLibTitle: '布尔工具库',
+                btnCloseBoolToolLib: '关闭',
+                boolToolSearchPlaceholder: '搜索名称…',
+                btLibNoMatch: '没有匹配的布尔工具。',
+                promptBoolToolSetName: '给这组布尔工具命名',
+                msgSavedBoolToolLib: '已保存到布尔工具库。',
+                msgLoadedBoolToolSet: '已载入：{0}',
+                errNoBoolToolsToSave: '没有可保存的布尔工具。',
+                errImportNoBoolToolSets: '文件中没有 “toolSets” 数据。',
+                loadingPreview: '正在生成预览…',
+                profileSearchPlaceholder: '搜索名称…',
+                btToolTitle: '工具 #{0}',
+                btDelete: '删除',
+                boolSubtractRemoved: '差集：从旋转体减去工具体积（按删除扇区）',
+                btInnerLabel: '内径（0 为实心圆柱）',
+                btOuterLabel: '外径',
+                btHeightLabel: '高度',
+                btYCenterLabel: 'Y 向中心',
+                btOffsetXLabel: 'X 偏移',
+                btOffsetYLabel: 'Y 偏移',
+                btOffsetZLabel: 'Z 偏移',
+                btMeshResLabel: '弧向细分',
+                btDivisionsLabel: '圆周等分数',
+                btHintMask: '绿色=保留（用于交集/并集）；红色=删除（用于差集）。<br>计算按列表顺序逐个叠加。',
+                sectorTooltip: '扇区 {0}',
+                errThreeNotLoadedBody: 'Three.js 库未加载，请检查网络连接或刷新页面。',
+                errStlNoFacets: 'STL 文件中没有找到有效的面。',
+                errStlEmpty: 'STL 内容为空。',
+                errGeomCreateFail: '几何体创建失败。',
+                errGeomNoPosition: '几何体缺少位置属性。',
+                errGeomNoVerts: '几何体没有顶点。',
+                previewLoadErrorPrefix: '预览加载失败：',
+                previewLoadErrorSuffix: '。STL 可能仍有效；请打开浏览器控制台（F12）查看详情。',
+                errEmptyBoolean: '布尔结果为空（0 个三角面）：旋转体与环在空间中无重叠体积。轮廓 |x| 约 {0}～{1} mm，Y 约 {2}～{3} mm；环半径 {4}～{5} mm，Y 约 {6}～{7} mm（环 Y 中心={8}）；工具平移 ({9}, {10}, {11})。请调整内外径、高度、Y 中心或 X/Y/Z 平移，或改用差集并确保删除扇区与实体相交。',
+                errRingNoSectors: '环工具：当前掩码下没有有效扇区。',
+                errToolInvalidDims: '工具 #{0}：尺寸请输入有效数字。',
+                errToolInvalidTranslate: '工具 #{0}：平移请输入有效数字。',
+                errToolInnerRange: '工具 #{0}：内径须在 [0, 外径)。',
+                errToolHeightPositive: '工具 #{0}：高度须为正数。',
+                errNeedBooleanTool: '请至少添加一个布尔工具。',
+                errNeedThreePoints: '至少需要3个点才能形成轮廓！',
+                errRevolveFailed: '旋转体(Manifold.revolve)失败：{0}。请保证轮廓为简单闭合多边形、尽量放在 x≥0 一侧，或降低自交/分段。',
+                errToolSubtractNeedRed: '工具 #{0}：差集模式下至少删除一扇区（红色）。',
+                errToolIntersectNeedGreen: '工具 #{0}：交集/并集模式下至少保留一扇区（绿色）。',
+                errRingToolBuild: '工具 #{0}：环工具(Manifold 构造)失败：{1}',
+                errBooleanOpFailed: '布尔运算失败：',
+                errMaskLenMismatch: '保留掩码长度与等分数不一致。',
+                errKeepOneSector: '至少保留一个扇区。',
+                loadingManifoldLine1: '正在加载 Manifold 内核并计算布尔…',
+                loadingManifoldLine2: '首次使用需下载 WASM（约数百 KB）',
+                resultBooleanOkTitle: '✓ STL 已生成（旋转体 + 多工具布尔）',
+                resultBooleanToolCount: '工具数量：',
+                resultBooleanVerts: '顶点数：',
+                resultBooleanFaces: '三角形面数：',
+                resultBooleanFile: '文件已下载为',
+                resultBooleanHint: '可点击「预览模型」查看。',
+                resultSimpleOkTitle: '✓ STL 文件生成成功',
+                resultSimplePoints: '轮廓点数：',
+                resultSimpleSegments: '旋转分段数：',
+                resultSimpleVerts: '顶点数：',
+                resultSimpleFaces: '面数：',
+                resultSimpleFile: '文件已自动下载为',
+                resultSimpleHint: '点击「预览模型」按钮查看 3D 预览。',
+                msgDownloaded: '文件已成功下载到您的下载文件夹！',
+                errLabel: '错误：',
+                genFailBanner: '× 生成失败',
+                previewFailBanner: '× 预览/模型生成失败',
+                errNoPointsToSave: '没有坐标可保存。',
+                promptProfileName: '给这组截面起个名字',
+                msgSavedToLib: '已保存到截面库。',
+                profileNoMatch: '没有匹配的截面记录。',
+                profileUnnamed: '（未命名）',
+                profileMetaSegments: '分段',
+                profileMetaSaved: '保存',
+                profileMetaUpdated: '更新',
+                btnProfileLoad: '加载',
+                btnProfileRename: '重命名',
+                btnProfileOverwrite: '用当前覆盖',
+                btnProfileExportOne: '导出此条',
+                btnProfileDelete: '删除',
+                errProfileNotFound: '记录不存在。',
+                msgLoadedProfile: '已加载：{0}',
+                promptNewName: '新名称',
+                errNoPointsOverwrite: '当前没有坐标可覆盖。',
+                confirmOverwrite: '确定用当前输入覆盖「{0}」吗？',
+                confirmDelete: '确定删除「{0}」吗？',
+                confirmClearLib: '确定清空整个截面库吗？此操作不可恢复。',
+                errImportNoProfiles: '文件里没有 profiles 数据。',
+                msgImportOk: '导入成功：{0} 条。',
+                errImportFailed: '导入失败：',
+                previewErrorPrefix: '预览错误：',
+                unnamedProfilePrefix: '未命名-'
             }
         };
 
+        function getCurrentLang() {
+            try {
+                return localStorage.getItem('revolve_lang') || 'en';
+            } catch {
+                return 'en';
+            }
+        }
+
+        function t(key) {
+            const lang = getCurrentLang();
+            const dict = I18N[lang] || I18N.en;
+            if (dict[key] != null) return dict[key];
+            return I18N.en[key] != null ? I18N.en[key] : key;
+        }
+
+        /** 占位符：{0}{1}… 与 %s（仅一处） */
+        function tf(key, args) {
+            let s = t(key);
+            if (Array.isArray(args)) {
+                args.forEach((v, i) => {
+                    s = s.split('{' + i + '}').join(String(v));
+                });
+            }
+            if (typeof args === 'string' || typeof args === 'number') {
+                s = s.replace('%s', String(args));
+            }
+            return s;
+        }
+
+        function appError(message) {
+            const e = new Error(message);
+            e.isAppError = true;
+            return e;
+        }
+
+        function alertLocalized(titleKey, detail) {
+            const title = t(titleKey);
+            if (detail != null && String(detail).trim() !== '') {
+                alert(title + '\n\n' + String(detail));
+            } else {
+                alert(title);
+            }
+        }
+
         function applyLanguage(lang) {
             const dict = I18N[lang] || I18N.en;
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            if (dict.title) document.title = dict.title;
             document.querySelectorAll('[data-i18n-key]').forEach(el => {
                 const key = el.getAttribute('data-i18n-key');
                 const val = dict[key];
                 if (val == null) return;
-                // 对包含 HTML 的文本使用 innerHTML
                 if (key === 'pointsHelpTitle' || key === 'pointsHelpLine1' || key === 'ringBoolHelp' || key === 'boolOpHelp' || key === 'ringYCenterHelp') {
                     el.innerHTML = val;
                 } else {
                     el.textContent = val;
                 }
+            });
+            document.querySelectorAll('[data-i18n-html]').forEach(el => {
+                const key = el.getAttribute('data-i18n-html');
+                const val = dict[key];
+                if (val != null) el.innerHTML = val;
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                const val = dict[key];
+                if (val != null) el.placeholder = val;
             });
             const boolSel = document.getElementById('boolOp');
             if (boolSel && dict.boolIntersect) {
@@ -888,6 +1187,16 @@
                 boolSel.options[1].text = dict.boolUnion || '并集';
                 boolSel.options[2].text = dict.boolSubtract;
             }
+            try {
+                if (document.getElementById('ringBooleanEnabled')?.checked) {
+                    renderBooleanTools();
+                }
+            } catch (e) {}
+            try {
+                if (document.getElementById('profileModal')?.classList.contains('show')) {
+                    renderProfileList();
+                }
+            } catch (e) {}
         }
 
         function setLanguage(lang) {
@@ -910,7 +1219,7 @@
         function initPreview() {
             // 检查Three.js是否加载
             if (typeof THREE === 'undefined') {
-                throw new Error('Three.js库未加载，请检查网络连接或刷新页面');
+                throw appError(t('errThreeNotLoadedBody'));
             }
             
             const canvas = document.getElementById('previewCanvas');
@@ -1059,7 +1368,7 @@
                 }
                 
                 if (vertices.length === 0) {
-                    throw new Error('STL文件中没有找到有效的面');
+                    throw appError(t('errStlNoFacets'));
                 }
                 
                 const geometry = new THREE.BufferGeometry();
@@ -1080,14 +1389,14 @@
             
             // 检查Three.js是否加载
             if (typeof THREE === 'undefined') {
-                alert('Three.js库未加载，请刷新页面重试');
+                alertLocalized('alertThreeNotLoaded');
                 return;
             }
             
             // 检查场景是否初始化
             if (!scene || !camera || !renderer) {
-                console.error('3D场景未初始化');
-                alert('3D预览场景未初始化，请刷新页面重试');
+                console.error('3D scene not initialized');
+                alertLocalized('alertPreviewNotReady');
                 return;
             }
             
@@ -1168,7 +1477,7 @@
                     console.log('STL内容是否存在:', !!stlContent);
                     
                     if (!stlContent || stlContent.trim().length === 0) {
-                        throw new Error('STL内容为空');
+                        throw appError(t('errStlEmpty'));
                     }
                     
                     console.log('STL内容长度:', stlContent.length);
@@ -1176,111 +1485,22 @@
                     const geometry = parseSTLText(stlContent);
                     
                     if (!geometry) {
-                        throw new Error('几何体创建失败');
+                        throw appError(t('errGeomCreateFail'));
                     }
                     
                     if (!geometry.attributes || !geometry.attributes.position) {
-                        throw new Error('几何体缺少位置属性');
+                        throw appError(t('errGeomNoPosition'));
                     }
                     
                     if (geometry.attributes.position.count === 0) {
-                        throw new Error('几何体没有顶点');
+                        throw appError(t('errGeomNoVerts'));
                     }
                     
                     console.log('几何体创建成功，顶点数:', geometry.attributes.position.count);
-                    
-                    // 计算几何中心并居中
-                    geometry.computeBoundingBox();
-                    if (!geometry.boundingBox) {
-                        throw new Error('无法计算边界框');
-                    }
-                    
-                    const center = new THREE.Vector3();
-                    geometry.boundingBox.getCenter(center);
-                    
                     const positions = geometry.attributes.position;
-                    
-                    // 居中所有顶点
-                    for (let i = 0; i < positions.count; i++) {
-                        positions.setX(i, positions.getX(i) - center.x);
-                        positions.setY(i, positions.getY(i) - center.y);
-                        positions.setZ(i, positions.getZ(i) - center.z);
-                    }
-                    positions.needsUpdate = true;
                     
                     // 重新计算法线（使用平滑法线，避免背面剔除问题）
                     geometry.computeVertexNormals();
-                    
-                    // 确保所有面的法线都指向外部
-                    // 通过检查每个面的法线方向，如果指向内部则反转
-                    const normals = geometry.attributes.normal;
-                    
-                    // 重新计算中心（因为顶点已经居中，现在中心应该在原点）
-                    geometry.computeBoundingBox();
-                    const newCenter = new THREE.Vector3();
-                    geometry.boundingBox.getCenter(newCenter);
-                    
-                    // 对于每个顶点，检查法线方向
-                    for (let i = 0; i < positions.count; i += 3) {
-                        // 获取三角形的三个顶点
-                        const v1 = new THREE.Vector3(
-                            positions.getX(i),
-                            positions.getY(i),
-                            positions.getZ(i)
-                        );
-                        const v2 = new THREE.Vector3(
-                            positions.getX(i + 1),
-                            positions.getY(i + 1),
-                            positions.getZ(i + 1)
-                        );
-                        const v3 = new THREE.Vector3(
-                            positions.getX(i + 2),
-                            positions.getY(i + 2),
-                            positions.getZ(i + 2)
-                        );
-                        
-                        // 计算三角形中心
-                        const triCenter = new THREE.Vector3()
-                            .add(v1).add(v2).add(v3)
-                            .divideScalar(3);
-                        
-                        // 获取法线
-                        const normal = new THREE.Vector3(
-                            normals.getX(i),
-                            normals.getY(i),
-                            normals.getZ(i)
-                        );
-                        
-                        // 计算从旋转轴（y轴）到三角形中心的方向
-                        // 注意：顶点已经居中，所以从原点(0,0,0)计算
-                        const toCenter = new THREE.Vector3(triCenter.x, 0, triCenter.z);
-                        const distFromAxis = toCenter.length();
-                        
-                        if (distFromAxis > 0.01) {
-                            toCenter.normalize();
-                            
-                            // 计算法线在xz平面的投影
-                            const normalXZ = new THREE.Vector3(normal.x, 0, normal.z);
-                            const normalXZLen = normalXZ.length();
-                            
-                            if (normalXZLen > 0.01) {
-                                normalXZ.normalize();
-                                
-                                // 如果法线与指向中心的方向点积为负，说明指向内部
-                                const dot = toCenter.dot(normalXZ);
-                                
-                                if (dot < 0) {
-                                    // 反转法线
-                                    for (let j = 0; j < 3; j++) {
-                                        normals.setX(i + j, -normals.getX(i + j));
-                                        normals.setY(i + j, -normals.getY(i + j));
-                                        normals.setZ(i + j, -normals.getZ(i + j));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    normals.needsUpdate = true;
                     
                     // 创建材质（禁用背面剔除，确保所有面都能看到）
                     const material = new THREE.MeshPhongMaterial({
@@ -1298,7 +1518,7 @@
                     console.log('新网格已添加到场景，场景中的对象数:', scene.children.length);
                     console.log('当前网格顶点数:', geometry.attributes.position.count);
                     
-                    // 调整相机位置以适应模型
+                    // 预览永远以世界坐标原点 (0,0,0) 为锚点
                     geometry.computeBoundingSphere();
                     const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 50;
                     const distance = Math.max(radius * 3, 10);
@@ -1325,11 +1545,15 @@
                         loading.classList.remove('show');
                     }
                     const errorMsg = document.getElementById('errorMsg');
+                    const em = (error && error.message != null) ? String(error.message) : String(error);
                     if (errorMsg) {
                         errorMsg.style.display = 'block';
-                        errorMsg.textContent = '预览加载失败: ' + error.message + '。但STL文件已生成。请检查浏览器控制台查看详细信息。';
+                        errorMsg.textContent = t('previewLoadErrorPrefix') + em + t('previewLoadErrorSuffix');
                     }
-                    alert('预览加载失败: ' + error.message + '\n请检查浏览器控制台（F12）查看详细信息。');
+                    alertLocalized(
+                        'alertPreviewLoadFailTitle',
+                        em + '\n\n' + t('alertPreviewLoadHint')
+                    );
                 }
             }, 50);
         }
@@ -1416,13 +1640,55 @@
             tool.mask = [];
             for (let i = 0; i < n; i++) tool.mask.push(i < prev.length ? (prev[i] ? 1 : 0) : 1);
         }
+
+        function syncBooleanToolsFromUI() {
+            for (let i = 0; i < booleanTools.length; i++) {
+                const bt = booleanTools[i];
+                if (!bt) continue;
+                const opEl = document.getElementById(`bt_op_${i}`);
+                if (opEl) bt.op = opEl.value || bt.op || 'intersect';
+
+                const innerEl = document.getElementById(`bt_inner_${i}`);
+                const outerEl = document.getElementById(`bt_outer_${i}`);
+                const hEl = document.getElementById(`bt_h_${i}`);
+                const cyEl = document.getElementById(`bt_cy_${i}`);
+                const oxEl = document.getElementById(`bt_ox_${i}`);
+                const oyEl = document.getElementById(`bt_oy_${i}`);
+                const ozEl = document.getElementById(`bt_oz_${i}`);
+                const divEl = document.getElementById(`bt_div_${i}`);
+                const resEl = document.getElementById(`bt_res_${i}`);
+
+                const inner = innerEl ? parseFloat(innerEl.value) : NaN;
+                const outer = outerEl ? parseFloat(outerEl.value) : NaN;
+                const height = hEl ? parseFloat(hEl.value) : NaN;
+                const yCenter = cyEl ? parseFloat(cyEl.value) : NaN;
+                const offsetX = oxEl ? parseFloat(oxEl.value) : NaN;
+                const offsetY = oyEl ? parseFloat(oyEl.value) : NaN;
+                const offsetZ = ozEl ? parseFloat(ozEl.value) : NaN;
+                const divisions = divEl ? parseInt(divEl.value, 10) : NaN;
+                const meshRes = resEl ? parseInt(resEl.value, 10) : NaN;
+
+                if (Number.isFinite(inner)) bt.inner = inner;
+                if (Number.isFinite(outer)) bt.outer = outer;
+                if (Number.isFinite(height)) bt.height = height;
+                if (Number.isFinite(yCenter)) bt.yCenter = yCenter;
+                if (Number.isFinite(offsetX)) bt.offsetX = offsetX;
+                if (Number.isFinite(offsetY)) bt.offsetY = offsetY;
+                if (Number.isFinite(offsetZ)) bt.offsetZ = offsetZ;
+                if (Number.isFinite(divisions)) bt.divisions = Math.max(1, divisions | 0);
+                if (Number.isFinite(meshRes)) bt.meshRes = Math.max(1, meshRes | 0);
+                ensureMaskLength(bt);
+            }
+        }
         
         function addBooleanTool() {
+            syncBooleanToolsFromUI();
             booleanTools.push(makeDefaultBooleanTool());
             renderBooleanTools();
         }
         
         function removeBooleanTool(idx) {
+            syncBooleanToolsFromUI();
             if (booleanTools.length <= 1) {
                 booleanTools = [makeDefaultBooleanTool()];
             } else {
@@ -1442,7 +1708,7 @@
                 b.type = 'button';
                 b.className = 'ring-mask-btn' + (tool.mask[i] ? '' : ' drop');
                 b.textContent = String(i);
-                b.title = '扇区 ' + i;
+                b.title = tf('sectorTooltip', [i]);
                 b.onclick = () => {
                     tool.mask[i] = tool.mask[i] ? 0 : 1;
                     renderToolMaskRow(idx);
@@ -1451,73 +1717,75 @@
             }
         }
         
-        function renderBooleanTools() {
+        function renderBooleanTools(syncFromUI = true) {
             const box = document.getElementById('booleanTools');
             if (!box) return;
             if (!booleanTools.length) booleanTools = [makeDefaultBooleanTool()];
+            if (syncFromUI) syncBooleanToolsFromUI();
             
             let html = '';
             for (let i = 0; i < booleanTools.length; i++) {
-                const t = booleanTools[i];
-                ensureMaskLength(t);
+                const tool = booleanTools[i];
+                ensureMaskLength(tool);
+                const opI = tf('btToolTitle', [i + 1]);
+                const optInt = t('boolIntersect');
+                const optUni = t('boolUnion');
+                const optSub = t('boolSubtractRemoved');
                 html += `
                     <div class="bt-card">
                         <div class="bt-card-header">
-                            <div class="bt-card-title">工具 #${i + 1}</div>
-                            <button class="btn-secondary" type="button" onclick="removeBooleanTool(${i})">删除</button>
+                            <div class="bt-card-title">${opI}</div>
+                            <button class="btn-secondary" type="button" onclick="removeBooleanTool(${i})">${t('btDelete')}</button>
                         </div>
                         <div class="bt-grid">
                             <div class="bt-field bt-span-2">
-                                <label>布尔方式</label>
+                                <label>${t('boolOpLabel')}</label>
                                 <select id="bt_op_${i}">
-                                    <option value="intersect">交集：旋转体与工具的公共部分</option>
-                                    <option value="union">并集：旋转体 ∪ 工具</option>
-                                    <option value="subtract_removed">差集：从旋转体减去工具体积（按删除扇区）</option>
+                                    <option value="intersect">${optInt}</option>
+                                    <option value="union">${optUni}</option>
+                                    <option value="subtract_removed">${optSub}</option>
                                 </select>
                             </div>
 
                             <div class="bt-field">
-                                <label>内径（0 为实心圆柱）</label>
-                                <input type="number" id="bt_inner_${i}" value="${t.inner}" min="0" step="0.1">
+                                <label>${t('btInnerLabel')}</label>
+                                <input type="number" id="bt_inner_${i}" value="${tool.inner}" min="0" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>外径</label>
-                                <input type="number" id="bt_outer_${i}" value="${t.outer}" min="0.1" step="0.1">
+                                <label>${t('btOuterLabel')}</label>
+                                <input type="number" id="bt_outer_${i}" value="${tool.outer}" min="0.1" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>高度</label>
-                                <input type="number" id="bt_h_${i}" value="${t.height}" min="0.1" step="0.1">
+                                <label>${t('btHeightLabel')}</label>
+                                <input type="number" id="bt_h_${i}" value="${tool.height}" min="0.1" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>Y 向中心</label>
-                                <input type="number" id="bt_cy_${i}" value="${t.yCenter}" step="0.1">
+                                <label>${t('btYCenterLabel')}</label>
+                                <input type="number" id="bt_cy_${i}" value="${tool.yCenter}" step="0.1">
                             </div>
 
                             <div class="bt-field">
-                                <label>X 偏移</label>
-                                <input type="number" id="bt_ox_${i}" value="${t.offsetX}" step="0.1">
+                                <label>${t('btOffsetXLabel')}</label>
+                                <input type="number" id="bt_ox_${i}" value="${tool.offsetX}" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>Y 偏移</label>
-                                <input type="number" id="bt_oy_${i}" value="${t.offsetY}" step="0.1">
+                                <label>${t('btOffsetYLabel')}</label>
+                                <input type="number" id="bt_oy_${i}" value="${tool.offsetY}" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>Z 偏移</label>
-                                <input type="number" id="bt_oz_${i}" value="${t.offsetZ}" step="0.1">
+                                <label>${t('btOffsetZLabel')}</label>
+                                <input type="number" id="bt_oz_${i}" value="${tool.offsetZ}" step="0.1">
                             </div>
                             <div class="bt-field">
-                                <label>弧向细分</label>
-                                <input type="number" id="bt_res_${i}" value="${t.meshRes}" min="1" max="512">
+                                <label>${t('btMeshResLabel')}</label>
+                                <input type="number" id="bt_res_${i}" value="${tool.meshRes}" min="1" max="512">
                             </div>
 
                             <div class="bt-field bt-span-2">
-                                <label>圆周等分数</label>
-                                <input type="number" id="bt_div_${i}" value="${t.divisions}" min="1" max="128">
+                                <label>${t('btDivisionsLabel')}</label>
+                                <input type="number" id="bt_div_${i}" value="${tool.divisions}" min="1" max="128">
                             </div>
-                            <div class="bt-span-2 bt-hint">
-                                绿色=保留（用于交集/并集）；红色=删除（用于差集）。<br>
-                                计算按列表顺序逐个叠加。
-                            </div>
+                            <div class="bt-span-2 bt-hint">${t('btHintMask')}</div>
                             <div class="bt-span-2">
                                 <div class="ring-mask-row" id="bt_mask_${i}"></div>
                             </div>
@@ -1528,9 +1796,34 @@
             box.innerHTML = html;
             
             for (let i = 0; i < booleanTools.length; i++) {
-                const t = booleanTools[i];
+                const bt = booleanTools[i];
                 const op = document.getElementById(`bt_op_${i}`);
-                if (op) op.value = t.op || 'intersect';
+                if (op) {
+                    op.value = bt.op || 'intersect';
+                    op.onchange = () => { booleanTools[i].op = op.value || 'intersect'; };
+                }
+
+                const bindNumber = (id, key, isInt) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const apply = () => {
+                        const v = isInt ? parseInt(el.value, 10) : parseFloat(el.value);
+                        if (!Number.isFinite(v)) return;
+                        booleanTools[i][key] = isInt ? (key === 'meshRes' ? Math.max(1, v | 0) : (v | 0)) : v;
+                    };
+                    el.oninput = apply;
+                    el.onchange = apply;
+                };
+
+                bindNumber(`bt_inner_${i}`, 'inner', false);
+                bindNumber(`bt_outer_${i}`, 'outer', false);
+                bindNumber(`bt_h_${i}`, 'height', false);
+                bindNumber(`bt_cy_${i}`, 'yCenter', false);
+                bindNumber(`bt_ox_${i}`, 'offsetX', false);
+                bindNumber(`bt_oy_${i}`, 'offsetY', false);
+                bindNumber(`bt_oz_${i}`, 'offsetZ', false);
+                bindNumber(`bt_res_${i}`, 'meshRes', true);
+
                 const div = document.getElementById(`bt_div_${i}`);
                 if (div) {
                     div.oninput = () => {
@@ -1613,6 +1906,36 @@
             }
             return { vertices, faces };
         }
+
+        function signedMeshVolume(vertices, faces) {
+            let v = 0;
+            for (let i = 0; i < faces.length; i++) {
+                const f = faces[i];
+                const a = vertices[f[0]];
+                const b = vertices[f[1]];
+                const c = vertices[f[2]];
+                // V = dot(a, cross(b, c)) / 6
+                const cx = b[1] * c[2] - b[2] * c[1];
+                const cy = b[2] * c[0] - b[0] * c[2];
+                const cz = b[0] * c[1] - b[1] * c[0];
+                v += a[0] * cx + a[1] * cy + a[2] * cz;
+            }
+            return v / 6;
+        }
+        
+        function ensureMeshPositiveVolumeWinding(vertices, faces) {
+            if (!Array.isArray(vertices) || !Array.isArray(faces) || vertices.length < 4 || faces.length < 4) return;
+            const vol = signedMeshVolume(vertices, faces);
+            if (!Number.isFinite(vol) || Math.abs(vol) < 1e-12) return;
+            if (vol < 0) {
+                for (let i = 0; i < faces.length; i++) {
+                    const f = faces[i];
+                    const t = f[1];
+                    f[1] = f[2];
+                    f[2] = t;
+                }
+            }
+        }
         
         function profileRadiusYExtents(profilePoints) {
             let rMin = Infinity;
@@ -1638,22 +1961,53 @@
             const ox = p.offsetX || 0;
             const oy = p.offsetY || 0;
             const oz = p.offsetZ || 0;
-            throw new Error(
-                '布尔结果为空（0 个三角面）：旋转体与环在空间中无重叠体积。' +
-                ` 轮廓 |x|（半径）约 ${rMin.toFixed(2)}～${rMax.toFixed(2)} mm，Y 约 ${yMin.toFixed(2)}～${yMax.toFixed(2)} mm；` +
-                ` 环半径 ${ri.toFixed(2)}～${ro.toFixed(2)} mm，Y 约 ${(cy - hh).toFixed(2)}～${(cy + hh).toFixed(2)} mm（环 Y 中心=${cy.toFixed(2)}）；` +
-                ` 工具平移 (${ox.toFixed(2)}, ${oy.toFixed(2)}, ${oz.toFixed(2)})。` +
-                ' 请调整内外径、高度、Y 中心或 X/Y/Z 平移，或改用差集并确保删除扇区与实体相交。'
-            );
+            throw appError(tf('errEmptyBoolean', [
+                rMin.toFixed(2), rMax.toFixed(2), yMin.toFixed(2), yMax.toFixed(2),
+                ri.toFixed(2), ro.toFixed(2),
+                (cy - hh).toFixed(2), (cy + hh).toFixed(2),
+                cy.toFixed(2),
+                ox.toFixed(2), oy.toFixed(2), oz.toFixed(2)
+            ]));
         }
         
         /**
          * Manifold.revolve 只使用截面在 x≥0 的部分；画布上常用负 x 表示半径，需用 |x| 作为旋转半径，
          * 否则正 x 侧为空，实体体积为 0，布尔结果为空。
          */
+        function poly2dSignedArea(poly) {
+            let a = 0;
+            const n = poly.length;
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                a += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+            }
+            return a / 2;
+        }
+        
+        function poly2dNearlyEqual(a, b, eps = 1e-9) {
+            return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
+        }
+        
+        function cleanupPoly2d(poly) {
+            const out = [];
+            for (let i = 0; i < poly.length; i++) {
+                const p = poly[i];
+                if (!out.length || !poly2dNearlyEqual(out[out.length - 1], p)) out.push(p);
+            }
+            if (out.length >= 2 && poly2dNearlyEqual(out[0], out[out.length - 1])) out.pop();
+            return out;
+        }
+        
+        function ensurePoly2dCCW(poly) {
+            if (poly.length < 3) return poly;
+            return poly2dSignedArea(poly) < 0 ? poly.slice().reverse() : poly;
+        }
+        
         function profileToManifoldRevolve(wasm, profilePoints, circularSegments) {
             const { Manifold } = wasm;
-            const poly2d = profilePoints.map(([px, py]) => ({ x: Math.abs(px), y: py }));
+            let poly2d = profilePoints.map(([px, py]) => ({ x: Math.abs(px), y: py }));
+            poly2d = cleanupPoly2d(poly2d);
+            poly2d = ensurePoly2dCCW(poly2d);
             const n = Math.max(8, Math.min(512, circularSegments | 0));
             return Manifold.revolve([poly2d], n, 360);
         }
@@ -1702,7 +2056,7 @@
                 }
             }
             if (acc == null) {
-                throw new Error('环工具：当前掩码下没有有效扇区');
+                throw appError(t('errRingNoSectors'));
             }
             return acc;
         }
@@ -1723,16 +2077,16 @@
                 const mask = (booleanTools[i] && Array.isArray(booleanTools[i].mask)) ? booleanTools[i].mask.slice() : [];
                 
                 if (!Number.isFinite(inner) || !Number.isFinite(outer) || !Number.isFinite(height) || !Number.isFinite(yCenter)) {
-                    throw new Error(`工具 #${i + 1}：尺寸请输入有效数字`);
+                    throw appError(tf('errToolInvalidDims', [i + 1]));
                 }
                 if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY) || !Number.isFinite(offsetZ)) {
-                    throw new Error(`工具 #${i + 1}：平移请输入有效数字`);
+                    throw appError(tf('errToolInvalidTranslate', [i + 1]));
                 }
                 if (inner < 0 || inner >= outer) {
-                    throw new Error(`工具 #${i + 1}：内径须在 [0, 外径)`);
+                    throw appError(tf('errToolInnerRange', [i + 1]));
                 }
                 if (height <= 0) {
-                    throw new Error(`工具 #${i + 1}：高度须为正数`);
+                    throw appError(tf('errToolHeightPositive', [i + 1]));
                 }
                 const tool = {
                     op,
@@ -1756,7 +2110,7 @@
         async function buildRevolveRingBooleanModel(profilePoints, segments) {
             const wasm = await getManifoldWasm();
             const tools = collectBooleanToolsFromUI();
-            if (!tools.length) throw new Error('请至少添加一个布尔工具');
+            if (!tools.length) throw appError(t('errNeedBooleanTool'));
             
             let mRev = null;
             let mCur = null;
@@ -1768,38 +2122,35 @@
                     mCur = mRev;
                 } catch (eRev) {
                     const er = (eRev && eRev.message) ? String(eRev.message) : String(eRev);
-                    throw new Error(
-                        '旋转体(Manifold.revolve)失败：' + er +
-                        '。请保证轮廓为简单闭合多边形、尽量放在 x≥0 一侧，或降低自交/分段。'
-                    );
+                    throw appError(tf('errRevolveFailed', [er]));
                 }
                 
                 for (let i = 0; i < tools.length; i++) {
-                    const t = tools[i];
-                    let mask = t.mask.slice();
-                    if (t.op === 'subtract_removed') {
+                    const tool = tools[i];
+                    let mask = tool.mask.slice();
+                    if (tool.op === 'subtract_removed') {
                         mask = mask.map((k) => (k ? 0 : 1));
-                        if (!mask.some(Boolean)) throw new Error(`工具 #${i + 1}：差集模式下至少删除一扇区（红色）`);
+                        if (!mask.some(Boolean)) throw appError(tf('errToolSubtractNeedRed', [i + 1]));
                     } else {
-                        if (!mask.some(Boolean)) throw new Error(`工具 #${i + 1}：交集/并集模式下至少保留一扇区（绿色）`);
+                        if (!mask.some(Boolean)) throw appError(tf('errToolIntersectNeedGreen', [i + 1]));
                     }
                     
                     let mTool = null;
                     try {
-                        mTool = buildRingToolManifold(wasm, t, mask);
-                        const [tx, ty, tz] = previewOffsetToManifoldTranslate(t.offsetX, t.offsetY, t.offsetZ);
+                        mTool = buildRingToolManifold(wasm, tool, mask);
+                        const [tx, ty, tz] = previewOffsetToManifoldTranslate(tool.offsetX, tool.offsetY, tool.offsetZ);
                         if (tx !== 0 || ty !== 0 || tz !== 0) {
                             mTool = mTool.translate(tx, ty, tz);
                         }
                     } catch (eTool) {
                         const er = (eTool && eTool.message) ? String(eTool.message) : String(eTool);
-                        throw new Error(`工具 #${i + 1}：环工具(Manifold 构造)失败：${er}`);
+                        throw appError(tf('errRingToolBuild', [i + 1, er]));
                     }
                     
                     let next = null;
                     try {
-                        if (t.op === 'intersect') next = mCur.intersect(mTool);
-                        else if (t.op === 'union') next = mCur.add(mTool);
+                        if (tool.op === 'intersect') next = mCur.intersect(mTool);
+                        else if (tool.op === 'union') next = mCur.add(mTool);
                         else next = mCur.subtract(mTool);
                     } finally {
                         try { if (mTool && mTool.delete) mTool.delete(); } catch (e) {}
@@ -1818,12 +2169,11 @@
                     throwEmptyBooleanResult(profilePoints, tools[tools.length - 1]);
                 }
                 outVF.vertices = manifoldZAxisMeshToThreeYUp(outVF.vertices);
+                ensureMeshPositiveVolumeWinding(outVF.vertices, outVF.faces);
             } catch (err) {
                 const m = err && err.message != null ? String(err.message) : String(err);
-                if (m.indexOf('旋转体') === 0 || m.indexOf('工具 #') === 0 || m.indexOf('布尔结果为空') === 0) {
-                    throw err;
-                }
-                throw new Error('布尔运算失败：' + m);
+                if (err && err.isAppError) throw err;
+                throw appError(t('errBooleanOpFailed') + m);
             } finally {
                 try { if (mRev && mRev.delete) mRev.delete(); } catch (e) {}
                 if (mCur && mCur !== mRev && mCur !== mOut) {
@@ -1896,8 +2246,8 @@
             const hh = height / 2;
             const nDiv = Math.max(1, divisions | 0);
             const m = mask.map(x => !!x);
-            if (m.length !== nDiv) throw new Error('保留掩码长度与等分数不一致');
-            if (!m.some(Boolean)) throw new Error('至少保留一个扇区');
+            if (m.length !== nDiv) throw appError(t('errMaskLenMismatch'));
+            if (!m.some(Boolean)) throw appError(t('errKeepOneSector'));
             
             const cylindrical = Math.abs(rIb - rIt) < 1e-9 && Math.abs(rOb - rOt) < 1e-9;
             const spd = Math.max(1, meshRes | 0);
@@ -1993,11 +2343,11 @@
                 const profilePoints = parsePoints(pointsText);
                 
                 if (profilePoints.length < 3) {
-                    throw new Error('至少需要3个点才能形成轮廓！');
+                    throw appError(t('errNeedThreePoints'));
                 }
                 
                 if (isRingBooleanEnabled()) {
-                    resultInfo.innerHTML = '<strong>正在加载 Manifold 内核并计算布尔…</strong><br><small>首次使用需下载 WASM（约数百 KB）</small>';
+                    resultInfo.innerHTML = '<strong>' + t('loadingManifoldLine1') + '</strong><br><small>' + t('loadingManifoldLine2') + '</small>';
                     const data = await buildRevolveRingBooleanModel(profilePoints, segments);
                     const stlContent = writeStlAscii('revolve_boolean', data.vertices, data.faces);
                     lastSTLContent = stlContent;
@@ -2011,15 +2361,15 @@
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     resultInfo.innerHTML = `
-                        <strong>✓ STL 已生成（旋转体 + 多工具布尔）</strong><br>
-                        工具数量: ${data.toolCount}<br>
-                        顶点数: ${data.vertices.length}<br>
-                        三角形面数: ${data.faces.length}<br>
-                        文件已下载为 <code>revolve_boolean.stl</code><br>
-                        <small>可点击「预览模型」查看</small>
+                        <strong>${t('resultBooleanOkTitle')}</strong><br>
+                        ${t('resultBooleanToolCount')} ${data.toolCount}<br>
+                        ${t('resultBooleanVerts')} ${data.vertices.length}<br>
+                        ${t('resultBooleanFaces')} ${data.faces.length}<br>
+                        ${t('resultBooleanFile')} <code>revolve_boolean.stl</code><br>
+                        <small>${t('resultBooleanHint')}</small>
                     `;
                     successMsg.style.display = 'block';
-                    successMsg.textContent = '文件已成功下载到您的下载文件夹！';
+                    successMsg.textContent = t('msgDownloaded');
                     return;
                 }
                 
@@ -2041,21 +2391,31 @@
                 URL.revokeObjectURL(url);
                 
                 resultInfo.innerHTML = `
-                    <strong>✓ STL文件生成成功！</strong><br>
-                    轮廓点数: ${numProfilePoints}<br>
-                    旋转分段数: ${numRotationSegments}<br>
-                    顶点数: ${meshV.length}<br>
-                    面数: ${meshF.length}<br>
-                    文件已自动下载为 <code>revolution.stl</code><br>
-                    <small>点击"预览模型"按钮查看3D预览</small>
+                    <strong>${t('resultSimpleOkTitle')}</strong><br>
+                    ${t('resultSimplePoints')} ${numProfilePoints}<br>
+                    ${t('resultSimpleSegments')} ${numRotationSegments}<br>
+                    ${t('resultSimpleVerts')} ${meshV.length}<br>
+                    ${t('resultSimpleFaces')} ${meshF.length}<br>
+                    ${t('resultSimpleFile')} <code>revolution.stl</code><br>
+                    <small>${t('resultSimpleHint')}</small>
                 `;
                 successMsg.style.display = 'block';
-                successMsg.textContent = '文件已成功下载到您的下载文件夹！';
+                successMsg.textContent = t('msgDownloaded');
                 
             } catch (error) {
-                errorMsg.style.display = 'block';
-                errorMsg.textContent = '错误: ' + error.message;
-                resultInfo.innerHTML = '';
+                const msg = (error && error.message != null) ? String(error.message) : String(error);
+                if (errorMsg) {
+                    errorMsg.style.display = 'block';
+                    errorMsg.textContent = t('errLabel') + msg;
+                }
+                // 避免“加载中”卡住却看不到原因：在结果区也同步显示失败原因
+                if (resultInfo) {
+                    const safe = (typeof escapeHtml === 'function') ? escapeHtml(msg) : msg;
+                    resultInfo.innerHTML = `<strong>${t('genFailBanner')}</strong><br><code style="white-space:pre-wrap;word-break:break-word;">${safe}</code>`;
+                }
+                const resultDiv = document.getElementById('result');
+                if (resultDiv) resultDiv.classList.add('show');
+                alertLocalized('alertModelGenFailTitle', msg);
             }
         }
 
@@ -2094,24 +2454,24 @@
         function saveProfile() {
             const cur = getCurrentProfilePayload();
             if (!cur.pointsText) {
-                alert('没有坐标可保存。');
+                alert(t('errNoPointsToSave'));
                 return;
             }
 
-            const name = prompt('给这组截面起个名字', '');
+            const name = prompt(t('promptProfileName'), '');
             if (name === null) return;
 
             const profiles = getProfiles();
             profiles.unshift({
                 id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
-                name: (name.trim() || `未命名-${new Date().toLocaleString()}`),
+                name: (name.trim() || (t('unnamedProfilePrefix') + new Date().toLocaleString())),
                 pointsText: cur.pointsText,
                 segments: cur.segments,
                 savedAt: nowISO(),
                 updatedAt: nowISO()
             });
             setProfiles(profiles);
-            alert('已保存到截面库。');
+            alert(t('msgSavedToLib'));
         }
 
         function openProfileManager() {
@@ -2131,7 +2491,7 @@
             const profiles = getProfiles().filter(p => !q || (p.name || '').toLowerCase().includes(q));
 
             if (!profiles.length) {
-                listDiv.innerHTML = `<div class="profile-item">没有匹配的截面记录。</div>`;
+                listDiv.innerHTML = `<div class="profile-item">${escapeHtml(t('profileNoMatch'))}</div>`;
                 return;
             }
 
@@ -2140,21 +2500,25 @@
                 const upd = p.updatedAt ? new Date(p.updatedAt).toLocaleString() : '';
                 const lines = String(p.pointsText || '').split('\n');
                 const ptsPreview = lines.slice(0, 6).join('\n') + (lines.length > 6 ? '\n…' : '');
+                const un = t('profileUnnamed');
+                const ms = t('profileMetaSegments');
+                const msv = t('profileMetaSaved');
+                const mud = t('profileMetaUpdated');
                 return `
                     <div class="profile-item">
                         <div class="profile-row">
                             <div>
-                                <div><strong>${escapeHtml(p.name || '(未命名)')}</strong></div>
+                                <div><strong>${escapeHtml(p.name || un)}</strong></div>
                                 <div style="color:#6b7280;font-size:12px;">
-                                    segments: ${escapeHtml(String(p.segments || 128))} | 保存: ${escapeHtml(saved)}${upd ? ` | 更新: ${escapeHtml(upd)}` : ''}
+                                    ${escapeHtml(ms)}: ${escapeHtml(String(p.segments || 128))} | ${escapeHtml(msv)}: ${escapeHtml(saved)}${upd ? ` | ${escapeHtml(mud)}: ${escapeHtml(upd)}` : ''}
                                 </div>
                             </div>
                             <div class="profile-actions">
-                                <button class="btn-success" onclick="loadProfile('${escapeAttr(p.id)}')">加载</button>
-                                <button class="btn-secondary" onclick="renameProfile('${escapeAttr(p.id)}')">重命名</button>
-                                <button class="btn-secondary" onclick="overwriteProfile('${escapeAttr(p.id)}')">用当前覆盖</button>
-                                <button class="btn-secondary" onclick="downloadOneProfile('${escapeAttr(p.id)}')">导出此条</button>
-                                <button class="btn-secondary" onclick="deleteProfile('${escapeAttr(p.id)}')">删除</button>
+                                <button class="btn-success" onclick="loadProfile('${escapeAttr(p.id)}')">${escapeHtml(t('btnProfileLoad'))}</button>
+                                <button class="btn-secondary" onclick="renameProfile('${escapeAttr(p.id)}')">${escapeHtml(t('btnProfileRename'))}</button>
+                                <button class="btn-secondary" onclick="overwriteProfile('${escapeAttr(p.id)}')">${escapeHtml(t('btnProfileOverwrite'))}</button>
+                                <button class="btn-secondary" onclick="downloadOneProfile('${escapeAttr(p.id)}')">${escapeHtml(t('btnProfileExportOne'))}</button>
+                                <button class="btn-secondary" onclick="deleteProfile('${escapeAttr(p.id)}')">${escapeHtml(t('btnProfileDelete'))}</button>
                             </div>
                         </div>
                         <div class="profile-meta">${escapeHtml(ptsPreview)}</div>
@@ -2167,20 +2531,20 @@
             const profiles = getProfiles();
             const p = profiles.find(x => x.id === id);
             if (!p) {
-                alert('记录不存在。');
+                alert(t('errProfileNotFound'));
                 return;
             }
             document.getElementById('points').value = p.pointsText || '';
             document.getElementById('segments').value = String(p.segments || 128);
             if (typeof syncToCoordinate === 'function') syncToCoordinate();
-            alert(`已加载：${p.name || ''}`);
+            alert(tf('msgLoadedProfile', [p.name || '']));
         }
 
         function renameProfile(id) {
             const profiles = getProfiles();
             const p = profiles.find(x => x.id === id);
             if (!p) return;
-            const name = prompt('新名称', p.name || '');
+            const name = prompt(t('promptNewName'), p.name || '');
             if (name === null) return;
             p.name = name.trim() || p.name;
             p.updatedAt = nowISO();
@@ -2191,13 +2555,13 @@
         function overwriteProfile(id) {
             const cur = getCurrentProfilePayload();
             if (!cur.pointsText) {
-                alert('当前没有坐标可覆盖。');
+                alert(t('errNoPointsOverwrite'));
                 return;
             }
             const profiles = getProfiles();
             const p = profiles.find(x => x.id === id);
             if (!p) return;
-            if (!confirm(`确定用当前输入覆盖「${p.name || ''}」吗？`)) return;
+            if (!confirm(tf('confirmOverwrite', [p.name || '']))) return;
             p.pointsText = cur.pointsText;
             p.segments = cur.segments;
             p.updatedAt = nowISO();
@@ -2209,13 +2573,13 @@
             const profiles = getProfiles();
             const p = profiles.find(x => x.id === id);
             if (!p) return;
-            if (!confirm(`确定删除「${p.name || ''}」吗？`)) return;
+            if (!confirm(tf('confirmDelete', [p.name || '']))) return;
             setProfiles(profiles.filter(x => x.id !== id));
             renderProfileList();
         }
 
         function clearProfiles() {
-            if (!confirm('确定清空整个截面库吗？此操作不可恢复。')) return;
+            if (!confirm(t('confirmClearLib'))) return;
             setProfiles([]);
             renderProfileList();
         }
@@ -2251,7 +2615,7 @@
                     const data = JSON.parse(text);
                     const incoming = Array.isArray(data?.profiles) ? data.profiles : [];
                     if (!incoming.length) {
-                        alert('文件里没有 profiles 数据。');
+                        alert(t('errImportNoProfiles'));
                         return;
                     }
 
@@ -2268,11 +2632,240 @@
                     }
                     const merged = Array.from(map.values()).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
                     setProfiles(merged);
-                    alert(`导入成功：${incoming.length} 条。`);
+                    alert(tf('msgImportOk', [incoming.length]));
                     const modal = document.getElementById('profileModal');
                     if (modal.classList.contains('show')) renderProfileList();
                 } catch (e) {
-                    alert('导入失败：' + (e?.message || e));
+                    alert(t('errImportFailed') + (e?.message || e));
+                }
+            };
+            input.click();
+        }
+
+        // =========================
+        // 布尔工具库（本地保存/管理/导入/导出）
+        // =========================
+        const BOOL_TOOLSETS_KEY = 'revolve_bool_toolsets_v1';
+
+        function onBoolToolModalBackdrop(e) {
+            if (e && e.target && e.target.id === 'boolToolModal') closeBooleanToolManager();
+        }
+
+        function getBoolToolSets() {
+            try {
+                return JSON.parse(localStorage.getItem(BOOL_TOOLSETS_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        function setBoolToolSets(list) {
+            localStorage.setItem(BOOL_TOOLSETS_KEY, JSON.stringify(list));
+        }
+
+        function getCurrentBoolToolPayload() {
+            // 用 UI 的数值作为准；同时把 mask/divisions 同步回 booleanTools 以保持一致
+            syncBooleanToolsFromUI();
+            return collectBooleanToolsFromUI();
+        }
+
+        function saveBooleanToolSet() {
+            if (!isRingBooleanEnabled()) {
+                const enabled = document.getElementById('ringBooleanEnabled');
+                if (enabled) enabled.checked = true;
+                onRingBooleanToggle();
+            }
+            let tools;
+            try {
+                tools = getCurrentBoolToolPayload();
+            } catch (e) {
+                alert((e && e.message) ? e.message : String(e));
+                return;
+            }
+            if (!Array.isArray(tools) || !tools.length) {
+                alert(t('errNoBoolToolsToSave'));
+                return;
+            }
+            const name = prompt(t('promptBoolToolSetName'), '');
+            if (name === null) return;
+
+            const list = getBoolToolSets();
+            list.unshift({
+                id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
+                name: (name.trim() || ('ToolSet-' + new Date().toLocaleString())),
+                tools,
+                savedAt: nowISO(),
+                updatedAt: nowISO()
+            });
+            setBoolToolSets(list);
+            alert(t('msgSavedBoolToolLib'));
+        }
+
+        function openBooleanToolManager() {
+            const modal = document.getElementById('boolToolModal');
+            modal.classList.add('show');
+            renderBooleanToolList();
+        }
+
+        function closeBooleanToolManager() {
+            const modal = document.getElementById('boolToolModal');
+            modal.classList.remove('show');
+        }
+
+        function renderBooleanToolList() {
+            const listDiv = document.getElementById('boolToolList');
+            const q = (document.getElementById('boolToolSearch')?.value || '').trim().toLowerCase();
+            const sets = getBoolToolSets().filter(s => !q || (s.name || '').toLowerCase().includes(q));
+
+            if (!sets.length) {
+                listDiv.innerHTML = `<div class="profile-item">${escapeHtml(t('btLibNoMatch'))}</div>`;
+                return;
+            }
+
+            listDiv.innerHTML = sets.map(s => {
+                const saved = s.savedAt ? new Date(s.savedAt).toLocaleString() : '';
+                const upd = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '';
+                const n = Array.isArray(s.tools) ? s.tools.length : 0;
+                const meta = `${t('resultBooleanToolCount')} ${n}${saved ? ` | ${saved}` : ''}${upd ? ` | ${upd}` : ''}`;
+                return `
+                    <div class="profile-item">
+                        <div class="profile-row">
+                            <div>
+                                <div><strong>${escapeHtml(s.name || '')}</strong></div>
+                                <div style="color:#6b7280;font-size:12px;">${escapeHtml(meta)}</div>
+                            </div>
+                            <div class="profile-actions">
+                                <button class="btn-success" onclick="loadBooleanToolSet('${escapeAttr(s.id)}')">${escapeHtml(t('btnProfileLoad'))}</button>
+                                <button class="btn-secondary" onclick="renameBooleanToolSet('${escapeAttr(s.id)}')">${escapeHtml(t('btnProfileRename'))}</button>
+                                <button class="btn-secondary" onclick="overwriteBooleanToolSet('${escapeAttr(s.id)}')">${escapeHtml(t('btnProfileOverwrite'))}</button>
+                                <button class="btn-secondary" onclick="downloadOneBooleanToolSet('${escapeAttr(s.id)}')">${escapeHtml(t('btnProfileExportOne'))}</button>
+                                <button class="btn-secondary" onclick="deleteBooleanToolSet('${escapeAttr(s.id)}')">${escapeHtml(t('btnProfileDelete'))}</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadBooleanToolSet(id) {
+            const sets = getBoolToolSets();
+            const s = sets.find(x => x.id === id);
+            if (!s) return;
+            if (!Array.isArray(s.tools) || !s.tools.length) return;
+            // 深拷贝，避免引用回写到库数据里
+            booleanTools = s.tools.map(tl => {
+                const tool = { ...makeDefaultBooleanTool(), ...(tl || {}) };
+                if (!Array.isArray(tool.mask)) tool.mask = [];
+                ensureMaskLength(tool);
+                return tool;
+            });
+            const enabled = document.getElementById('ringBooleanEnabled');
+            if (enabled) enabled.checked = true;
+            // 仅确保面板可见；不要调用 onRingBooleanToggle()，它会从旧 UI 反向同步污染新加载的数据
+            const panel = document.getElementById('booleanToolsPanel');
+            if (panel) panel.style.display = 'block';
+            // 覆盖加载：不要从旧 UI 反向同步，直接以库数据渲染（会替换掉当前 UI 工具列表）
+            renderBooleanTools(false);
+            alert(tf('msgLoadedBoolToolSet', [s.name || '']));
+        }
+
+        function renameBooleanToolSet(id) {
+            const sets = getBoolToolSets();
+            const s = sets.find(x => x.id === id);
+            if (!s) return;
+            const name = prompt(t('promptNewName'), s.name || '');
+            if (name === null) return;
+            s.name = name.trim() || s.name;
+            s.updatedAt = nowISO();
+            setBoolToolSets(sets);
+            renderBooleanToolList();
+        }
+
+        function overwriteBooleanToolSet(id) {
+            let tools;
+            try {
+                tools = getCurrentBoolToolPayload();
+            } catch (e) {
+                alert((e && e.message) ? e.message : String(e));
+                return;
+            }
+            if (!Array.isArray(tools) || !tools.length) {
+                alert(t('errNoBoolToolsToSave'));
+                return;
+            }
+            const sets = getBoolToolSets();
+            const s = sets.find(x => x.id === id);
+            if (!s) return;
+            if (!confirm(tf('confirmOverwrite', [s.name || '']))) return;
+            s.tools = tools;
+            s.updatedAt = nowISO();
+            setBoolToolSets(sets);
+            renderBooleanToolList();
+        }
+
+        function deleteBooleanToolSet(id) {
+            const sets = getBoolToolSets();
+            const s = sets.find(x => x.id === id);
+            if (!s) return;
+            if (!confirm(tf('confirmDelete', [s.name || '']))) return;
+            setBoolToolSets(sets.filter(x => x.id !== id));
+            renderBooleanToolList();
+        }
+
+        function clearBooleanToolSets() {
+            if (!confirm(t('confirmClearLib'))) return;
+            setBoolToolSets([]);
+            renderBooleanToolList();
+        }
+
+        function exportBooleanToolSets() {
+            const payload = { version: 1, exportedAt: nowISO(), toolSets: getBoolToolSets() };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, 'boolean-tool-library.json');
+        }
+
+        function downloadOneBooleanToolSet(id) {
+            const sets = getBoolToolSets();
+            const s = sets.find(x => x.id === id);
+            if (!s) return;
+            const payload = { version: 1, exportedAt: nowISO(), toolSets: [s] };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, `${sanitizeFileName(s.name || 'toolset')}.json`);
+        }
+
+        function importBooleanToolSets() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json,.json';
+            input.onchange = async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    const incoming = Array.isArray(data?.toolSets) ? data.toolSets : [];
+                    if (!incoming.length) {
+                        alert(t('errImportNoBoolToolSets'));
+                        return;
+                    }
+                    const existing = getBoolToolSets();
+                    const map = new Map(existing.map(s => [s.id, s]));
+                    for (const s of incoming) {
+                        const id = s.id || (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+                        map.set(id, {
+                            ...s,
+                            id,
+                            savedAt: s.savedAt || nowISO(),
+                            updatedAt: nowISO()
+                        });
+                    }
+                    const merged = Array.from(map.values()).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+                    setBoolToolSets(merged);
+                    alert(tf('msgImportOk', [incoming.length]));
+                    const modal = document.getElementById('boolToolModal');
+                    if (modal.classList.contains('show')) renderBooleanToolList();
+                } catch (e) {
+                    alert(t('errImportFailed') + (e?.message || e));
                 }
             };
             input.click();
@@ -2318,7 +2911,7 @@
             
             try {
                 if (!scene || !camera || !renderer) {
-                    throw new Error('3D预览场景未初始化，请刷新页面');
+                    throw appError(t('alertPreviewNotReady'));
                 }
                 
                 const pointsText = document.getElementById('points').value;
@@ -2326,7 +2919,7 @@
                 const profilePoints = parsePoints(pointsText);
                 
                 if (profilePoints.length < 3) {
-                    throw new Error('至少需要3个点才能形成轮廓！');
+                    throw appError(t('errNeedThreePoints'));
                 }
                 
                 let stlContent;
@@ -2342,14 +2935,23 @@
                 
             } catch (error) {
                 console.error('previewModel错误:', error);
+                const msg = (error && error.message != null) ? String(error.message) : String(error);
                 if (errorMsg) {
                     errorMsg.style.display = 'block';
-                    errorMsg.textContent = '预览错误: ' + error.message;
+                    errorMsg.textContent = t('previewErrorPrefix') + msg;
                 }
+                const resultInfo = document.getElementById('resultInfo');
+                if (resultInfo) {
+                    const safe = (typeof escapeHtml === 'function') ? escapeHtml(msg) : msg;
+                    resultInfo.innerHTML = `<strong>${t('previewFailBanner')}</strong><br><code style="white-space:pre-wrap;word-break:break-word;">${safe}</code>`;
+                }
+                const resultDiv = document.getElementById('result');
+                if (resultDiv) resultDiv.classList.add('show');
                 const loading = document.getElementById('loading');
                 if (loading) {
                     loading.classList.remove('show');
                 }
+                alertLocalized('alertModelGenFailTitle', msg);
             }
         }
         
@@ -2451,8 +3053,17 @@
 
         async function clearWebCacheAndReload() {
             try {
-                // 清除本页存储
-                try { localStorage.clear(); } catch (e) {}
+                // 清除缓存但保留“库数据”（截面库/布尔工具库/语言等）
+                try {
+                    const keep = new Map();
+                    const keysToKeep = [PROFILES_KEY, BOOL_TOOLSETS_KEY, 'revolve_lang'];
+                    for (const k of keysToKeep) {
+                        const v = localStorage.getItem(k);
+                        if (v != null) keep.set(k, v);
+                    }
+                    localStorage.clear();
+                    for (const [k, v] of keep) localStorage.setItem(k, v);
+                } catch (e) {}
                 try { sessionStorage.clear(); } catch (e) {}
 
                 // 清除 Cache Storage（如有）
@@ -2477,8 +3088,13 @@
         // 坐标系相关变量
         let coordinatePoints = [];
         let coordCanvas, coordCtx;
-        let coordScale = 5; // 缩放比例：1像素 = coordScale单位
-        let coordCenterX = 0, coordCenterY = 0; // 坐标系中心（实际坐标）
+        // coordScale：每 1 个“实际坐标单位”对应多少像素（越大越放大）
+        let coordScale = 5;
+        // coordCenterX/Y：坐标原点 (0,0) 在画布中的像素位置（用于平移）
+        let coordCenterX = 0, coordCenterY = 0;
+        let coordIsPanning = false;
+        let coordPanLastX = 0, coordPanLastY = 0;
+        let coordSuppressClick = false;
         
         // 初始化坐标系
         function initCoordinate() {
@@ -2500,8 +3116,61 @@
             // 从文本框同步初始点
             syncFromText();
             
-            // 添加点击事件
+            // 滚轮缩放（以鼠标所在的实际坐标为中心）
+            coordCanvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = coordCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // 当前鼠标指向的实际坐标（缩放前）
+                const worldX = (x - coordCenterX) / coordScale;
+                const worldY = (coordCenterY - y) / coordScale;
+                
+                const zoomFactor = Math.pow(1.0015, -e.deltaY); // 轻微指数缩放，兼容触控板
+                const nextScale = Math.max(0.5, Math.min(200, coordScale * zoomFactor));
+                if (nextScale === coordScale) return;
+                
+                coordScale = nextScale;
+                
+                // 调整中心，使鼠标下的点保持不动
+                coordCenterX = x - worldX * coordScale;
+                coordCenterY = y + worldY * coordScale;
+                
+                drawCoordinate();
+            }, { passive: false });
+
+            // 平移：中键拖拽 或 Shift+左键拖拽
+            coordCanvas.addEventListener('mousedown', (e) => {
+                const isMiddle = e.button === 1;
+                const isShiftLeft = e.button === 0 && e.shiftKey;
+                if (!isMiddle && !isShiftLeft) return;
+                e.preventDefault();
+                coordIsPanning = true;
+                coordPanLastX = e.clientX;
+                coordPanLastY = e.clientY;
+                coordSuppressClick = true;
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!coordIsPanning) return;
+                const dx = e.clientX - coordPanLastX;
+                const dy = e.clientY - coordPanLastY;
+                coordPanLastX = e.clientX;
+                coordPanLastY = e.clientY;
+                coordCenterX += dx;
+                coordCenterY += dy;
+                drawCoordinate();
+            });
+            window.addEventListener('mouseup', () => {
+                if (!coordIsPanning) return;
+                coordIsPanning = false;
+                // 松开鼠标后短暂抑制 click，避免误加点
+                setTimeout(() => { coordSuppressClick = false; }, 0);
+            });
+
+            // 添加点击事件（点击加点；平移时不触发）
             coordCanvas.addEventListener('click', (e) => {
+                if (coordSuppressClick) return;
                 const rect = coordCanvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
@@ -2721,7 +3390,11 @@
                         initCoordinate();
                     } catch (error) {
                         console.error('初始化失败:', error);
-                        alert('初始化失败: ' + error.message + '\n请刷新页面重试');
+                        const em = (error && error.message != null) ? String(error.message) : String(error);
+                        alertLocalized(
+                            'alertInitFailTitle',
+                            em + '\n\n' + t('alertInitFailHint')
+                        );
                     }
                 } else {
                     console.log('等待Three.js加载...');
